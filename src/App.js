@@ -5,10 +5,6 @@ function App() {
   return (
     // 전체 페이지 컨테이너. 화면 전체를 채우고 내용을 중앙에 배치합니다.
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-inter">
-      {/* Tailwind CSS를 로드합니다. */}
-      <script src="https://cdn.tailwindcss.com"></script>
-      {/* 웹 폰트를 로드합니다. */}
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
 
       {/* 커뮤니티 헤더 섹션 */}
       <header className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 flex flex-col items-center">
