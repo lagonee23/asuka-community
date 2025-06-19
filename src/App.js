@@ -10,7 +10,7 @@ function App() {
       <header className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 flex flex-col items-center">
         {/* 커뮤니티 이름 */}
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-4 animate-pulse">
-          AUSKA
+          ASUKA
         </h1>
         {/* 슬로건 또는 설명 */}
         <p className="text-lg sm:text-xl text-gray-600 text-center max-w-2xl">
@@ -37,7 +37,7 @@ function App() {
 
       {/* 푸터 섹션 */}
       <footer className="mt-8 text-gray-500 text-sm">
-        <p>&copy; 2024 AUSKA Community. All rights reserved.</p>
+        <p>&copy; 2024 ASUKA Community. All rights reserved.</p>
       </footer>
     </div>
   );
