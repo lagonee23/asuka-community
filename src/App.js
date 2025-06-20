@@ -19,11 +19,11 @@ function App() {
       </header>
 
       <nav className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-4 mb-8 flex justify-center items-center space-x-6 sm:space-x-8">
-        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</a>
-        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">게시판</a>
-        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">새 글 작성</a>
-        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</a>
-        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">로그인</a>
+        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
+        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">게시판</div>
+        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">새 글 작성</div>
+        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</div>
+        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">로그인</div>
       </nav>
 
       {/* 메인 콘텐츠 영역 (향후 커뮤니티 게시물, 기능 등이 추가될 곳) */}
