@@ -4,22 +4,30 @@ import React from 'react';
 function App() {
   return (
     // 전체 페이지 컨테이너. 화면 전체를 채우고 내용을 중앙에 배치합니다.
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-inter">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter">
 
       {/* 커뮤니티 헤더 섹션 */}
-      <header className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 flex flex-col items-center">
+      <header className="w-full max-w-6xl p-6 sm:p-8 mb-8 flex flex-col items-center">
         {/* 커뮤니티 이름 */}
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-4 animate-pulse">
           ASUKA
         </h1>
         {/* 슬로건 또는 설명 */}
         <p className="text-lg sm:text-xl text-gray-600 text-center max-w-2xl">
-          당신의 이야기를 나누고, 새로운 인연을 만들어가는 공간
+          Anime Sukidesuka?
         </p>
       </header>
 
+      <nav className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-4 mb-8 flex justify-center items-center space-x-6 sm:space-x-8">
+        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</a>
+        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">게시판</a>
+        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">새 글 작성</a>
+        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</a>
+        <a href="#" className="text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">로그인</a>
+      </nav>
+
       {/* 메인 콘텐츠 영역 (향후 커뮤니티 게시물, 기능 등이 추가될 곳) */}
-      <main className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-6 sm:p-8">
+      <main className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
         <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
           최신 게시물
         </h2>
