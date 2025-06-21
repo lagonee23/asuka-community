@@ -7,9 +7,9 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter">
 
       {/* 커뮤니티 헤더 섹션 */}
-      <header className="w-full max-w-6xl px-4 py-6 sm:py-8 mb-8 flex flex-col items-start">
+      <header className="w-full max-w-6xl pl-0 py-0 sm:py-0 mb-2 flex flex-col items-start">
         {/* 커뮤니티 이름 */}
-        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-4 animate-pulse">
+        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse">
           ASUKA
         </h1>
         {/* 슬로건 또는 설명 */}
