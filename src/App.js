@@ -7,14 +7,14 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter">
 
       {/* 커뮤니티 헤더 섹션 */}
-      <header className="w-full max-w-6xl p-6 sm:p-8 mb-8 flex flex-col items-center">
+      <header className="w-full max-w-6xl px-4 py-6 sm:py-8 mb-8 flex flex-col items-start">
         {/* 커뮤니티 이름 */}
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-4 animate-pulse">
           ASUKA
         </h1>
         {/* 슬로건 또는 설명 */}
-        <p className="text-lg sm:text-xl text-gray-600 text-center max-w-2xl">
-          Anime Sukidesuka?
+        <p className="text-lg sm:text-xl text-gray-600 max-w-2xl">
+          アニメ好きですか
         </p>
       </header>
 
