@@ -4,6 +4,190 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore'; 
 
+// AuthFormContainer 컴포넌트: 로그인 폼을 렌더링합니다. (사이드바용)
+// 내부에서 회원가입으로 전환하는 링크를 클릭하면 전용 회원가입 페이지로 이동합니다.
+const AuthFormContainer = ({
+  authError,
+  currentUser,
+  userProfile,
+  userId,
+  handleLogout,
+  handleLogin,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  setCurrentPage, // 페이지 전환을 위해 추가
+}) => {
+  // AuthFormContainer는 기본적으로 로그인 폼을 보여줍니다.
+  // 내부에서 '회원가입' 클릭 시 메인 페이지를 'register'로 전환합니다.
+  const handleRegisterLinkClick = () => {
+    setCurrentPage('register');
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit">
+      {authError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">오류:</strong>
+          <span className="block sm:inline ml-2">{authError}</span>
+        </div>
+      )}
+
+      {currentUser ? (
+        <div className="text-center">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-green-200 pb-2">
+            환영합니다!
+          </h3>
+          <p className="text-lg text-gray-700 mb-4">
+            {userProfile ? `${userProfile.username} (${userProfile.email}) 님` : `${currentUser.email || '익명 사용자'} 님`}
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            사용자 ID: <span className="font-mono break-all">{userId}</span>
+          </p>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
+          >
+            로그아웃
+          </button>
+        </div>
+      ) : (
+        <>
+          <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-purple-200 pb-2">
+            로그인
+          </h3>
+          <form onSubmit={handleLogin} className="flex flex-col space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-gray-700 text-sm font-bold mb-2">
+                이메일
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="이메일을 입력하세요"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-gray-700 text-sm font-bold mb-2">
+                비밀번호
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="비밀번호를 입력하세요"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
+            >
+              로그인
+            </button>
+          </form>
+          <div className="mt-4 text-center text-sm">
+            <div
+              onClick={handleRegisterLinkClick} // 회원가입 페이지로 이동
+              className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block"
+            >
+              회원가입
+            </div>
+            <span className="text-gray-400">|</span>
+            <div className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block">비밀번호 찾기</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+
+// RegisterPage 컴포넌트: 전용 회원가입 페이지를 렌더링합니다.
+const RegisterPage = ({
+  authError,
+  handleRegister,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  setCurrentPage, // 회원가입 성공 후 페이지 전환을 위해 추가
+}) => {
+  const handleLoginLinkClick = () => {
+    setCurrentPage('home'); // 로그인 사이드바가 있는 홈 페이지로 돌아갑니다.
+  };
+
+  return (
+    <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-purple-200 pb-2">
+        회원가입
+      </h2>
+      {authError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">오류:</strong>
+          <span className="block sm:inline ml-2">{authError}</span>
+        </div>
+      )}
+      <form onSubmit={handleRegister} className="flex flex-col space-y-4">
+        <div>
+          <label htmlFor="register-email" className="block text-gray-700 text-sm font-bold mb-2">
+            이메일
+          </label>
+          <input
+            type="email"
+            id="register-email"
+            name="email"
+            placeholder="이메일을 입력하세요"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor="register-password" className="block text-gray-700 text-sm font-bold mb-2">
+            비밀번호
+          </label>
+          <input
+            type="password"
+            id="register-password"
+            name="password"
+            placeholder="비밀번호 (6자 이상)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
+        >
+          회원가입
+        </button>
+      </form>
+      <div className="mt-4 text-center text-sm">
+        <div
+          onClick={handleLoginLinkClick}
+          className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block"
+        >
+          이미 계정이 있으신가요? 로그인
+        </div>
+      </div>
+    </section>
+  );
+};
+
+
 function App() {
   // Firebase 관련 상태 변수
   const [auth, setAuth] = useState(null);
@@ -16,7 +200,12 @@ function App() {
   // 로그인/회원가입 폼 상태
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false); // 회원가입 폼인지 여부
+  // isRegistering 상태는 이제 AuthFormContainer 내부에서만 필요하거나, 완전히 제거될 수 있습니다.
+  // SPA 페이지 전환 방식에서는 최상위 App 컴포넌트에서 직접 폼 모드를 제어하기보다는,
+  // AuthFormContainer나 RegisterPage 같은 특정 컴포넌트가 자신의 폼을 렌더링하도록 합니다.
+
+  // 현재 페이지 상태 (SPA 라우팅 역할)
+  const [currentPage, setCurrentPage] = useState('home'); // 'home', 'board', 'newPost', 'profile', 'register'
 
   // 사용자 프로필 데이터 (Firestore에서 불러올 데이터)
   const [userProfile, setUserProfile] = useState(null);
@@ -34,7 +223,8 @@ function App() {
         
         // 로컬 개발 환경을 위한 Firebase 설정 객체. 
         // __firebase_config가 정의되지 않았다면 이 값을 사용합니다.
-        // Firebase Console에서 복사한 실제 값으로 교체했습니다.
+        // **** 중요: 여기에 여러분의 실제 Firebase 프로젝트 설정을 직접 입력해야 합니다. ****
+        // **** 이 방식은 개발 편의를 위한 것이며, 실제 배포 시에는 환경 변수(.env 파일 등)를 사용해야 보안상 안전합니다. ****
         const localFirebaseConfig = {
           apiKey: process.env.REACT_APP_FIREBASE_API_KEY, 
           authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN, 
@@ -78,20 +268,18 @@ function App() {
           }
         } catch (initialSignInError) {
           console.error("초기 로그인 (토큰 또는 익명) 실패:", initialSignInError);
-          // 사용자에게 오류 메시지 표시
           setAuthError(`초기 로그인 실패: ${initialSignInError.message || initialSignInError.code}. Firebase 콘솔에서 익명 인증이 활성화되어 있는지 확인하세요.`);
-          setLoadingAuth(false); // 초기 로그인 실패 시에도 로딩 중지
-          return; // 이 단계에서 치명적인 오류 발생 시 더 이상 진행하지 않음
+          setLoadingAuth(false);
+          return;
         }
 
         // 초기 로그인 시도가 완료된 후 인증 상태 리스너 설정
         authUnsubscribe = onAuthStateChanged(authInstance, async (user) => {
           console.log("onAuthStateChanged 콜백 실행. 사용자:", user ? user.uid : "null (로그아웃 상태)");
-
-          // 기존 프로필 리스너가 있다면 해제
+          
           if (currentProfileUnsubscribe) {
             currentProfileUnsubscribe();
-            currentProfileUnsubscribe = null; // 리스너 해제 후 초기화
+            currentProfileUnsubscribe = null;
             console.log("이전 사용자 프로필 리스너 해제됨.");
           }
 
@@ -99,12 +287,9 @@ function App() {
             setCurrentUser(user);
             setUserId(user.uid);
             console.log(`사용자 ${user.uid}가 로그인되었습니다. 프로필 로드 시도 중...`);
-
-            // 사용자의 UID가 Firestore 보안 규칙과 일치하는지 확인하기 위한 로그
-            console.log(`Firestore 프로필 경로: artifacts/${appId}/users/${user.uid}/profile/public`);
             
-            // 사용자 프로필 Firestore에서 불러오기 (실시간 리스너)
-            // 참고: Firestore 보안 규칙에 따라 /artifacts/{appId}/users/{userId}/profile/public 에 접근 권한이 있어야 합니다.
+            console.log(`Firestore 프로필 경로: artifacts/${appId}/users/${user.uid}/profile/public`);
+
             const userDocRef = doc(dbInstance, `artifacts/${appId}/users/${user.uid}/profile`, 'public');
             currentProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
               if (docSnap.exists()) {
@@ -112,7 +297,6 @@ function App() {
                 setUserProfile(docSnap.data());
               } else {
                 console.log("사용자 프로필을 찾을 수 없음. 기본 프로필 생성 시도 중...");
-                // 프로필이 없으면 기본 프로필 생성
                 setDoc(userDocRef, { email: user.email, createdAt: new Date().toISOString() }, { merge: true })
                   .then(() => {
                     console.log("기본 프로필이 성공적으로 생성되었습니다.");
@@ -123,41 +307,40 @@ function App() {
                     setAuthError(`프로필 생성 오류: ${profileCreateError.message}`);
                   });
               }
-              setLoadingAuth(false); // 프로필 상태가 결정되면 로딩 중지
+              setLoadingAuth(false);
             }, (profileSnapshotError) => {
               console.error("사용자 프로필 리스닝 중 오류 발생 (onSnapshot 콜백 오류):", profileSnapshotError);
               setAuthError(`사용자 프로필 로드 중 오류: ${profileSnapshotError.message}`);
-              setLoadingAuth(false); // Firestore 리스너 실패 시 로딩 중지
+              setLoadingAuth(false);
             });
           } else {
             console.log("인증된 사용자 없음. 현재 사용자를 null로 설정.");
             setCurrentUser(null);
             setUserId(null);
             setUserProfile(null);
-            setLoadingAuth(false); // 인증된 사용자가 없으면 로딩 중지
+            setLoadingAuth(false);
           }
         });
 
       } catch (e) {
         console.error("useEffect에서 치명적인 Firebase 초기화 오류 발생:", e);
         setAuthError(`Firebase 초기화 중 치명적인 오류: ${e.message}`);
-        setLoadingAuth(false); // 모든 치명적인 오류 발생 시 로딩 중지
+        setLoadingAuth(false);
       }
-    })(); // 비동기 즉시 실행 함수 끝
+    })();
 
-    // useEffect 정리 함수: 리스너 해제
     return () => {
       console.log("useEffect 정리 함수 시작.");
       if (authUnsubscribe) {
         authUnsubscribe();
         console.log("인증 상태 리스너 해제됨.");
       }
-      if (currentProfileUnsubscribe) { // 정리 시에도 프로필 리스너 해제
+      if (currentProfileUnsubscribe) {
         currentProfileUnsubscribe();
         console.log("Firestore 프로필 리스너 해제됨.");
       }
     };
-  }, []); // 빈 배열: 컴포넌트 마운트 시 한 번만 실행
+  }, []);
 
   // 회원가입 처리 함수 (useCallback으로 래핑)
   const handleRegister = useCallback(async (e) => {
@@ -171,17 +354,14 @@ function App() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-      // 사용자 프로필 Firestore에 저장
       await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'public'), {
         email: user.email,
-        username: email.split('@')[0], // 이메일 앞부분을 사용자 이름으로 임시 설정
+        username: email.split('@')[0],
         createdAt: new Date().toISOString(),
-        // 다른 기본 프로필 정보 추가 가능
       });
-      // 성공 메시지 또는 자동 로그인 (onAuthStateChanged가 처리)
       setEmail('');
       setPassword('');
-      setIsRegistering(false); // 회원가입 후 로그인 폼으로 전환
+      setCurrentPage('home'); // 회원가입 성공 후 홈 페이지로 이동 (자동 로그인)
     } catch (error) {
       console.error("Error during registration:", error);
       let errorMessage = "회원가입 중 오류가 발생했습니다.";
@@ -194,7 +374,7 @@ function App() {
       }
       setAuthError(errorMessage);
     }
-  }, [auth, db, email, password, setIsRegistering, setAuthError]); // 의존성 배열 추가
+  }, [auth, db, email, password, setCurrentPage, setAuthError]);
 
   // 로그인 처리 함수 (useCallback으로 래핑)
   const handleLogin = useCallback(async (e) => {
@@ -206,9 +386,9 @@ function App() {
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // 로그인 성공 (onAuthStateChanged가 처리)
       setEmail('');
       setPassword('');
+      setCurrentPage('home'); // 로그인 성공 후 홈 페이지로 이동
     } catch (error) {
       console.error("Error during login:", error);
       let errorMessage = "로그인 중 오류가 발생했습니다. 이메일 또는 비밀번호를 확인해주세요.";
@@ -221,7 +401,7 @@ function App() {
       }
       setAuthError(errorMessage);
     }
-  }, [auth, email, password, setAuthError]); // 의존성 배열 추가
+  }, [auth, email, password, setCurrentPage, setAuthError]);
 
   // 로그아웃 처리 함수 (useCallback으로 래핑)
   const handleLogout = useCallback(async () => {
@@ -231,13 +411,125 @@ function App() {
     }
     try {
       await signOut(auth);
-      // 로그아웃 성공 (onAuthStateChanged가 처리)
-      setAuthError(null); // 오류 메시지 초기화
+      setAuthError(null);
+      setCurrentPage('home'); // 로그아웃 후 홈 페이지로 이동
     } catch (error) {
       console.error("Error during logout:", error);
       setAuthError("로그아웃 중 오류가 발생했습니다: " + error.message);
     }
-  }, [auth, setAuthError]); // 의존성 배열 추가
+  }, [auth, setCurrentPage, setAuthError]);
+
+
+  // 메인 콘텐츠 렌더링 함수
+  const renderMainContent = () => {
+    if (currentPage === 'home') {
+      return (
+        // 홈 페이지 레이아웃 (최신 게시물 + 로그인 사이드바)
+        <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row lg:gap-8 flex-1">
+          {/* 최신 게시물 섹션 (왼쪽 컬럼) */}
+          <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 lg:mb-0 w-full lg:w-2/3">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+              최신 게시물
+            </h2>
+            <div className="text-gray-500 text-center py-12">
+              <p className="text-xl mb-4">
+                <span role="img" aria-label="sparkles">✨</span>
+                아직 게시물이 없습니다. 첫 게시물을 작성해주세요!
+              </p>
+              <button className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1">
+                새 게시물 작성하기
+              </button>
+            </div>
+          </section>
+
+          {/* 로그인/사용자 정보 섹션 (오른쪽 컬럼) - 홈 페이지에 포함 */}
+          <div className="w-full lg:w-1/3"> {/* AuthFormContainer를 감싸는 div에 너비 클래스 적용 */}
+            <AuthFormContainer
+              authError={authError}
+              currentUser={currentUser}
+              userProfile={userProfile}
+              userId={userId}
+              handleLogout={handleLogout}
+              handleLogin={handleLogin}
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              setCurrentPage={setCurrentPage} // AuthFormContainer에서도 페이지 전환 가능하도록 전달
+            />
+          </div>
+        </div>
+      );
+    } else if (currentPage === 'register') {
+      return (
+        // 회원가입 전용 페이지 (전체 너비, 중앙 정렬)
+        <RegisterPage
+          authError={authError}
+          handleRegister={handleRegister}
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          setCurrentPage={setCurrentPage} // 회원가입 성공 후 또는 로그인 링크 클릭 시 페이지 전환
+        />
+      );
+    } else if (currentPage === 'board') {
+      return (
+        <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+            게시판
+          </h2>
+          <div className="text-gray-500 text-center py-12">
+            <p className="text-xl mb-4">게시판 내용이 여기에 표시됩니다.</p>
+            <p className="text-base text-gray-400">여기에 게시물 목록이 나타날 예정입니다.</p>
+          </div>
+        </section>
+      );
+    } else if (currentPage === 'newPost') {
+      return (
+        <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+            새 글 작성
+          </h2>
+          <div className="text-gray-500 text-center py-12">
+            <p className="text-xl mb-4">새로운 글을 작성할 수 있는 폼이 여기에 옵니다.</p>
+            <textarea
+              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              rows="8"
+              placeholder="여기에 글 내용을 입력하세요..."
+            ></textarea>
+            <button className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+              작성 완료
+            </button>
+          </div>
+        </section>
+      );
+    } else if (currentPage === 'profile') {
+      return (
+        <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+            내 정보
+          </h2>
+          <div className="text-gray-500 text-center py-12">
+            <p className="text-xl mb-4">사용자 프로필 정보가 여기에 표시됩니다.</p>
+            {currentUser && userProfile ? (
+              <div className="text-left max-w-md mx-auto">
+                <p><strong>이메일:</strong> {userProfile.email}</p>
+                {userProfile.username && <p><strong>사용자 이름:</strong> {userProfile.username}</p>}
+                <p><strong>가입일:</strong> {new Date(userProfile.createdAt).toLocaleDateString('ko-KR')}</p>
+                <p className="text-sm text-gray-500 mt-4">
+                  (사용자 ID: <span className="font-mono break-all">{userId}</span>)
+                </p>
+              </div>
+            ) : (
+              <p>로그인 후 프로필을 확인해주세요.</p>
+            )}
+          </div>
+        </section>
+      );
+    }
+    return null; // 기본적으로 아무것도 렌더링하지 않음
+  };
 
   // 인증 로딩 중일 때 표시
   if (loadingAuth) {
@@ -270,12 +562,14 @@ function App() {
 
       {/* 새로운 메뉴 바 섹션 */}
       <nav className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-4 mb-8 flex justify-start items-center space-x-6 sm:space-x-8 pl-8">
-        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
-        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">게시판</div>
-        <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">새 글 작성</div>
+        <div onClick={() => setCurrentPage('home')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
+        <div onClick={() => setCurrentPage('board')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">게시판</div>
+        <div onClick={() => setCurrentPage('newPost')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">새 글 작성</div>
+        
         {currentUser ? (
+          // 로그인 상태일 때
           <>
-            <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</div>
+            <div onClick={() => setCurrentPage('profile')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</div>
             <div
               onClick={handleLogout}
               className="cursor-pointer text-lg font-medium text-red-600 hover:text-red-800 transition duration-300"
@@ -284,15 +578,16 @@ function App() {
             </div>
           </>
         ) : (
+          // 로그아웃 상태일 때
           <>
             <div
-              onClick={() => setIsRegistering(false)}
+              onClick={() => setCurrentPage('home')} // 로그인 사이드바가 있는 홈 페이지로 이동
               className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
             >
               로그인
             </div>
             <div
-              onClick={() => setIsRegistering(true)}
+              onClick={() => setCurrentPage('register')} // 전용 회원가입 페이지로 이동
               className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
             >
               회원가입
@@ -301,121 +596,9 @@ function App() {
         )}
       </nav>
 
-      {/* 메인 콘텐츠 영역 - '최신 게시물'과 '로그인' 섹션을 위한 Flex 컨테이너 */}
-      <main className="w-full max-w-6xl flex flex-col lg:flex-row lg:gap-8 flex-1">
-        {/* 최신 게시물 섹션 (왼쪽 컬럼) */}
-        <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 lg:mb-0 w-full lg:w-2/3">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
-            최신 게시물
-          </h2>
-          <div className="text-gray-500 text-center py-12">
-            <p className="text-xl mb-4">
-              <span role="img" aria-label="sparkles">✨</span>
-              아직 게시물이 없습니다. 첫 게시물을 작성해주세요!
-            </p>
-            <button className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1">
-              새 게시물 작성하기
-            </button>
-          </div>
-        </section>
-
-        {/* 로그인/사용자 정보 섹션 (오른쪽 컬럼) */}
-        <aside className="bg-white rounded-xl shadow-lg p-6 sm:p-8 w-full lg:w-1/3 h-fit">
-          {authError && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-              <strong className="font-bold">오류:</strong>
-              <span className="block sm:inline ml-2">{authError}</span>
-            </div>
-          )}
-
-          {currentUser ? (
-            // 사용자가 로그인했을 때
-            <div className="text-center">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-green-200 pb-2">
-                환영합니다!
-              </h3>
-              <p className="text-lg text-gray-700 mb-4">
-                {userProfile ? `${userProfile.username} (${userProfile.email}) 님` : `${currentUser.email || '익명 사용자'} 님`}
-              </p>
-              <p className="text-sm text-gray-500 mb-4">
-                사용자 ID: <span className="font-mono break-all">{userId}</span>
-              </p>
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
-              >
-                로그아웃
-              </button>
-              {/* 추가 프로필 정보나 대시보드 링크 등을 여기에 표시할 수 있습니다. */}
-            </div>
-          ) : (
-            // 사용자가 로그인하지 않았을 때 (로그인 또는 회원가입 폼)
-            <>
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-purple-200 pb-2">
-                {isRegistering ? '회원가입' : '로그인'}
-              </h3>
-              <form onSubmit={isRegistering ? handleRegister : handleLogin} className="flex flex-col space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-gray-700 text-sm font-bold mb-2">
-                    이메일
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    placeholder="이메일을 입력하세요"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="password" className="block text-gray-700 text-sm font-bold mb-2">
-                    비밀번호
-                  </label>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    placeholder="비밀번호를 입력하세요"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
-                >
-                  {isRegistering ? '회원가입' : '로그인'}
-                </button>
-              </form>
-              <div className="mt-4 text-center text-sm">
-                {isRegistering ? (
-                  <div
-                    onClick={() => setIsRegistering(false)}
-                    className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block"
-                  >
-                    이미 계정이 있으신가요? 로그인
-                  </div>
-                ) : (
-                  <>
-                    <div
-                      onClick={() => setIsRegistering(true)}
-                      className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block"
-                    >
-                      회원가입
-                    </div>
-                    <span className="text-gray-400">|</span>
-                    <div className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block">비밀번호 찾기</div>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-        </aside>
+      {/* 메인 콘텐츠 영역: currentPage 값에 따라 동적으로 렌더링 */}
+      <main className="w-full flex-1"> {/* flex-1로 남은 공간 차지 */}
+        {renderMainContent()}
       </main>
 
       {/* 푸터 섹션 */}
