@@ -36,13 +36,13 @@ function App() {
         // __firebase_config가 정의되지 않았다면 이 값을 사용합니다.
         // Firebase Console에서 복사한 실제 값으로 교체했습니다.
         const localFirebaseConfig = {
-          apiKey: "AIzaSyAtSK-TwmpiRi5OHfrX0KITcNfekRYvif0",
-          authDomain: "asuka-2a6e4.firebaseapp.com",
-          projectId: "asuka-2a6e4",
-          storageBucket: "asuka-2a6e4.firebasestorage.app",
-          messagingSenderId: "772000658049",
-          appId: "1:772000658049:web:500a05f52fa8dff1b7d380",
-          measurementId: "G-7K12F15T2S"
+          apiKey: process.env.REACT_APP_FIREBASE_API_KEY, 
+          authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN, 
+          projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID, 
+          storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET, 
+          messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID, 
+          appId: process.env.REACT_APP_FIREBASE_APP_ID, 
+          measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
         };
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : localFirebaseConfig;
