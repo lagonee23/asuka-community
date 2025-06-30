@@ -200,15 +200,19 @@ function App() {
   // 로그인/회원가입 폼 상태
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  // isRegistering 상태는 이제 AuthFormContainer 내부에서만 필요하거나, 완전히 제거될 수 있습니다.
-  // SPA 페이지 전환 방식에서는 최상위 App 컴포넌트에서 직접 폼 모드를 제어하기보다는,
-  // AuthFormContainer나 RegisterPage 같은 특정 컴포넌트가 자신의 폼을 렌더링하도록 합니다.
 
   // 현재 페이지 상태 (SPA 라우팅 역할)
   const [currentPage, setCurrentPage] = useState('home'); // 'home', 'board', 'newPost', 'profile', 'register'
 
   // 사용자 프로필 데이터 (Firestore에서 불러올 데이터)
   const [userProfile, setUserProfile] = useState(null);
+
+  // Gemini API 관련 상태 변수
+  const [postPrompt, setPostPrompt] = useState(''); // 게시물 아이디어 프롬프트
+  const [generatedContent, setGeneratedContent] = useState(''); // Gemini가 생성한 내용
+  const [isGenerating, setIsGenerating] = useState(false); // Gemini 생성 중 로딩 상태
+  const [generationError, setGenerationError] = useState(null); // Gemini 생성 오류 메시지
+
 
   // Firebase 초기화 및 인증 상태 리스너 설정
   useEffect(() => {
@@ -222,9 +226,6 @@ function App() {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // 로컬 개발 환경을 위한 Firebase 설정 객체. 
-        // __firebase_config가 정의되지 않았다면 이 값을 사용합니다.
-        // **** 중요: 여기에 여러분의 실제 Firebase 프로젝트 설정을 직접 입력해야 합니다. ****
-        // **** 이 방식은 개발 편의를 위한 것이며, 실제 배포 시에는 환경 변수(.env 파일 등)를 사용해야 보안상 안전합니다. ****
         const localFirebaseConfig = {
           apiKey: process.env.REACT_APP_FIREBASE_API_KEY, 
           authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN, 
@@ -419,6 +420,57 @@ function App() {
     }
   }, [auth, setCurrentPage, setAuthError]);
 
+  // Gemini API를 사용하여 게시물 내용 생성
+  const generatePostContent = useCallback(async () => {
+    setGenerationError(null);
+    setIsGenerating(true);
+    setGeneratedContent(''); // 이전 생성 내용을 초기화
+
+    if (!postPrompt.trim()) {
+      setGenerationError("아이디어 생성을 위한 주제를 입력해주세요.");
+      setIsGenerating(false);
+      return;
+    }
+
+    try {
+      const prompt = `애니메이션 커뮤니티 게시물 작성에 도움이 되도록 다음 주제에 대한 짧고 흥미로운 게시물 아이디어를 생성해 주세요: "${postPrompt}". 내용은 한국어로 작성해주세요.`;
+      
+      let chatHistory = [];
+      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+      const payload = { contents: chatHistory };
+      const apiKey = ""; // Canvas 환경에서 자동으로 제공
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API 오류: ${response.status} ${response.statusText} - ${errorData.error ? errorData.error.message : '알 수 없는 오류'}`);
+      }
+
+      const result = await response.json();
+
+      if (result.candidates && result.candidates.length > 0 &&
+          result.candidates[0].content && result.candidates[0].content.parts &&
+          result.candidates[0].content.parts.length > 0) {
+        const text = result.candidates[0].content.parts[0].text;
+        setGeneratedContent(text);
+      } else {
+        setGenerationError("AI 응답에서 유효한 내용을 찾을 수 없습니다.");
+      }
+    } catch (error) {
+      console.error("Gemini API 호출 중 오류 발생:", error);
+      setGenerationError(`아이디어 생성 실패: ${error.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [postPrompt]);
+
 
   // 메인 콘텐츠 렌더링 함수
   const renderMainContent = () => {
@@ -491,12 +543,42 @@ function App() {
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
             새 글 작성
           </h2>
-          <div className="text-gray-500 text-center py-12">
-            <p className="text-xl mb-4">새로운 글을 작성할 수 있는 폼이 여기에 옵니다.</p>
+          {/* Gemini API를 사용한 아이디어 생성 섹션 */}
+          <div className="mb-6">
+            <label htmlFor="post-prompt" className="block text-gray-700 text-sm font-bold mb-2">
+              ✨ 아이디어 얻기 (주제 입력):
+            </label>
+            <input
+              type="text"
+              id="post-prompt"
+              value={postPrompt}
+              onChange={(e) => setPostPrompt(e.target.value)}
+              placeholder="예: 좋아하는 애니 캐릭터 추천, 애니 명장면 분석"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-2"
+            />
+            <button
+              onClick={generatePostContent}
+              disabled={isGenerating}
+              className={`w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {isGenerating ? '아이디어 생성 중...' : '✨ 아이디어 생성'}
+            </button>
+            {generationError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4" role="alert">
+                <strong className="font-bold">오류:</strong>
+                <span className="block sm:inline ml-2">{generationError}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="text-gray-500 text-center py-4">
+            <p className="text-xl mb-4">여기에 글 내용을 입력하거나, AI가 생성한 내용을 붙여넣으세요.</p>
             <textarea
               className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
               rows="8"
               placeholder="여기에 글 내용을 입력하세요..."
+              value={generatedContent}
+              onChange={(e) => setGeneratedContent(e.target.value)} // 사용자가 편집 가능하도록 설정
             ></textarea>
             <button className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
               작성 완료
