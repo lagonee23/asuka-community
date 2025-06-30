@@ -5,7 +5,6 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore'; 
 
 // AuthFormContainer 컴포넌트: 로그인 폼을 렌더링합니다. (사이드바용)
-// 내부에서 회원가입으로 전환하는 링크를 클릭하면 전용 회원가입 페이지로 이동합니다.
 const AuthFormContainer = ({
   authError,
   currentUser,
@@ -202,17 +201,10 @@ function App() {
   const [password, setPassword] = useState('');
 
   // 현재 페이지 상태 (SPA 라우팅 역할)
-  const [currentPage, setCurrentPage] = useState('home'); // 'home', 'board', 'newPost', 'profile', 'register'
+  const [currentPage, setCurrentPage] = useState('home'); // 'home', 'vocabularyList', 'addWord', 'profile', 'register'
 
   // 사용자 프로필 데이터 (Firestore에서 불러올 데이터)
   const [userProfile, setUserProfile] = useState(null);
-
-  // Gemini API 관련 상태 변수
-  const [postPrompt, setPostPrompt] = useState(''); // 게시물 아이디어 프롬프트
-  const [generatedContent, setGeneratedContent] = useState(''); // Gemini가 생성한 내용
-  const [isGenerating, setIsGenerating] = useState(false); // Gemini 생성 중 로딩 상태
-  const [generationError, setGenerationError] = useState(null); // Gemini 생성 오류 메시지
-
 
   // Firebase 초기화 및 인증 상태 리스너 설정
   useEffect(() => {
@@ -420,78 +412,25 @@ function App() {
     }
   }, [auth, setCurrentPage, setAuthError]);
 
-  // Gemini API를 사용하여 게시물 내용 생성
-  const generatePostContent = useCallback(async () => {
-    setGenerationError(null);
-    setIsGenerating(true);
-    setGeneratedContent(''); // 이전 생성 내용을 초기화
-
-    if (!postPrompt.trim()) {
-      setGenerationError("아이디어 생성을 위한 주제를 입력해주세요.");
-      setIsGenerating(false);
-      return;
-    }
-
-    try {
-      const prompt = `애니메이션 커뮤니티 게시물 작성에 도움이 되도록 다음 주제에 대한 짧고 흥미로운 게시물 아이디어를 생성해 주세요: "${postPrompt}". 내용은 한국어로 작성해주세요.`;
-      
-      let chatHistory = [];
-      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-
-      const payload = { contents: chatHistory };
-      const apiKey = ""; // Canvas 환경에서 자동으로 제공
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API 오류: ${response.status} ${response.statusText} - ${errorData.error ? errorData.error.message : '알 수 없는 오류'}`);
-      }
-
-      const result = await response.json();
-
-      if (result.candidates && result.candidates.length > 0 &&
-          result.candidates[0].content && result.candidates[0].content.parts &&
-          result.candidates[0].content.parts.length > 0) {
-        const text = result.candidates[0].content.parts[0].text;
-        setGeneratedContent(text);
-      } else {
-        setGenerationError("AI 응답에서 유효한 내용을 찾을 수 없습니다.");
-      }
-    } catch (error) {
-      console.error("Gemini API 호출 중 오류 발생:", error);
-      setGenerationError(`아이디어 생성 실패: ${error.message}`);
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [postPrompt]);
-
-
   // 메인 콘텐츠 렌더링 함수
   const renderMainContent = () => {
     if (currentPage === 'home') {
       return (
-        // 홈 페이지 레이아웃 (최신 게시물 + 로그인 사이드바)
         <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row lg:gap-8 flex-1">
-          {/* 최신 게시물 섹션 (왼쪽 컬럼) */}
-          <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 lg:mb-0 w-full lg:w-2/3">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
-              최신 게시물
+          {/* 단어장 앱 환영 섹션 (왼쪽 컬럼) */}
+          <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 lg:mb-0 w-full lg:w-2/3 flex flex-col items-center justify-center">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2 text-center">
+              나만의 단어장을 만들어 보세요!
             </h2>
-            <div className="text-gray-500 text-center py-12">
-              <p className="text-xl mb-4">
-                <span role="img" aria-label="sparkles">✨</span>
-                아직 게시물이 없습니다. 첫 게시물을 작성해주세요!
+              <p className="text-lg text-gray-700 mb-4 text-center">
+                ASUKA 단어장 앱에서 새로운 단어를 추가하고, 학습하고, 관리해보세요.
               </p>
-              <button className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1">
-                새 게시물 작성하기
+              <button
+                onClick={() => setCurrentPage('addWord')}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
+              >
+              새 단어 추가하기
               </button>
-            </div>
           </section>
 
           {/* 로그인/사용자 정보 섹션 (오른쪽 컬럼) - 홈 페이지에 포함 */}
@@ -525,64 +464,59 @@ function App() {
           setCurrentPage={setCurrentPage} // 회원가입 성공 후 또는 로그인 링크 클릭 시 페이지 전환
         />
       );
-    } else if (currentPage === 'board') {
+    } else if (currentPage === 'vocabularyList') {
       return (
         <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
-            게시판
+            내 단어장
           </h2>
           <div className="text-gray-500 text-center py-12">
-            <p className="text-xl mb-4">게시판 내용이 여기에 표시됩니다.</p>
-            <p className="text-base text-gray-400">여기에 게시물 목록이 나타날 예정입니다.</p>
+            <p className="text-xl mb-4">여기에 저장된 단어 목록이 표시됩니다.</p>
+            <p className="text-base text-gray-400">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
+            <button
+              onClick={() => setCurrentPage('addWord')}
+              className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+            >
+              단어 추가하기
+            </button>
           </div>
         </section>
       );
-    } else if (currentPage === 'newPost') {
+    } else if (currentPage === 'addWord') {
       return (
         <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
-            새 글 작성
+            단어 추가
           </h2>
-          {/* Gemini API를 사용한 아이디어 생성 섹션 */}
-          <div className="mb-6">
-            <label htmlFor="post-prompt" className="block text-gray-700 text-sm font-bold mb-2">
-              ✨ 아이디어 얻기 (주제 입력):
-            </label>
-            <input
-              type="text"
-              id="post-prompt"
-              value={postPrompt}
-              onChange={(e) => setPostPrompt(e.target.value)}
-              placeholder="예: 좋아하는 애니 캐릭터 추천, 애니 명장면 분석"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-2"
-            />
-            <button
-              onClick={generatePostContent}
-              disabled={isGenerating}
-              className={`w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isGenerating ? '아이디어 생성 중...' : '✨ 아이디어 생성'}
-            </button>
-            {generationError && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4" role="alert">
-                <strong className="font-bold">오류:</strong>
-                <span className="block sm:inline ml-2">{generationError}</span>
+          <div className="text-gray-500 text-center py-12">
+            <p className="text-xl mb-4">새로운 단어를 추가할 수 있는 폼이 여기에 옵니다.</p>
+            <div className="flex flex-col space-y-4 max-w-md mx-auto">
+              <div>
+                <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+                  단어
+                </label>
+                <input
+                  type="text"
+                  id="word"
+                  placeholder="새로운 단어를 입력하세요"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                />
               </div>
-            )}
-          </div>
-
-          <div className="text-gray-500 text-center py-4">
-            <p className="text-xl mb-4">여기에 글 내용을 입력하거나, AI가 생성한 내용을 붙여넣으세요.</p>
-            <textarea
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              rows="8"
-              placeholder="여기에 글 내용을 입력하세요..."
-              value={generatedContent}
-              onChange={(e) => setGeneratedContent(e.target.value)} // 사용자가 편집 가능하도록 설정
-            ></textarea>
-            <button className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
-              작성 완료
-            </button>
+              <div>
+                <label htmlFor="meaning" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+                  의미
+                </label>
+                <textarea
+                  id="meaning"
+                  className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  rows="4"
+                  placeholder="단어의 의미를 입력하세요..."
+                ></textarea>  
+              </div>
+              <button className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+                단어 저장
+              </button>
+            </div>
           </div>
         </section>
       );
@@ -625,28 +559,24 @@ function App() {
   return (
     // 전체 페이지 컨테이너. 화면 전체를 채우고 내용을 중앙에 배치합니다.
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter">
-      {/* Tailwind CSS와 웹 폰트 로드 스크립트를 App.js에서 제거했습니다. */}
-      {/* 이 스크립트들은 public/index.html 파일의 <head> 섹션에 위치해야 합니다. */}
-      {/* <script src="https://cdn.tailwindcss.com"></script> */}
-      {/* <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" /> */}
 
       {/* 커뮤니티 헤더 섹션 - 배경, 테두리, 그림자 제거 */}
       <header className="w-full max-w-6xl pl-0 py-0 sm:py-0 mb-2 flex flex-col items-start">
-        {/* 커뮤니티 이름 */}
+        {/* 앱 이름 */}
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse">
           ASUKA
         </h1>
         {/* 슬로건 또는 설명 */}
         <p className="text-lg sm:text-xl text-gray-600 max-w-2xl">
-          アニメ好きですか
+           나만의 일본어 단어장을 만들어 보세요!
         </p>
       </header>
 
       {/* 새로운 메뉴 바 섹션 */}
       <nav className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-4 mb-8 flex justify-start items-center space-x-6 sm:space-x-8 pl-8">
         <div onClick={() => setCurrentPage('home')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
-        <div onClick={() => setCurrentPage('board')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">게시판</div>
-        <div onClick={() => setCurrentPage('newPost')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">새 글 작성</div>
+        <div onClick={() => setCurrentPage('vocabularyList')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어장</div>
+        <div onClick={() => setCurrentPage('addWord')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
         
         {currentUser ? (
           // 로그인 상태일 때
@@ -685,7 +615,7 @@ function App() {
 
       {/* 푸터 섹션 */}
       <footer className="mt-8 text-gray-500 text-sm">
-        <p>&copy; 2024 ASUKA Community. All rights reserved.</p>
+        <p>&copy; 2024 ASUKA. All rights reserved.</p>
       </footer>
     </div>
   );
