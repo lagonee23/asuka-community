@@ -4,7 +4,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore'; 
 
-// AuthFormContainer 컴포넌트: 로그인 폼을 렌더링합니다. (사이드바용)
+// AuthFormContainer 컴포넌트: 로그인 폼을 렌더링합니다.
 const AuthFormContainer = ({
   authError,
   currentUser,
@@ -25,7 +25,7 @@ const AuthFormContainer = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit">
+    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit w-full max-w-md mx-auto"> {/* 너비 조정 */}
       {authError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <strong className="font-bold">오류:</strong>
@@ -122,7 +122,7 @@ const RegisterPage = ({
   setCurrentPage, // 회원가입 성공 후 페이지 전환을 위해 추가
 }) => {
   const handleLoginLinkClick = () => {
-    setCurrentPage('home'); // 로그인 사이드바가 있는 홈 페이지로 돌아갑니다.
+    setCurrentPage('loginPage'); // 로그인 페이지로 이동
   };
 
   return (
@@ -201,7 +201,7 @@ function App() {
   const [password, setPassword] = useState('');
 
   // 현재 페이지 상태 (SPA 라우팅 역할)
-  const [currentPage, setCurrentPage] = useState('home'); // 'home', 'vocabularyList', 'addWord', 'profile', 'register'
+  const [currentPage, setCurrentPage] = useState('home'); // 'home', 'vocabularyList', 'addWord', 'profile', 'register', 'loginPage'
 
   // 사용자 프로필 데이터 (Firestore에서 불러올 데이터)
   const [userProfile, setUserProfile] = useState(null);
@@ -217,18 +217,10 @@ function App() {
         console.log("Firebase 초기화 프로세스 시작.");
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
-        // 로컬 개발 환경을 위한 Firebase 설정 객체. 
-        const localFirebaseConfig = {
-          apiKey: process.env.REACT_APP_FIREBASE_API_KEY, 
-          authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN, 
-          projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID, 
-          storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET, 
-          messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID, 
-          appId: process.env.REACT_APP_FIREBASE_APP_ID, 
-          measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
-        };
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : localFirebaseConfig;
+        // Canvas 환경에서 __firebase_config는 전역으로 제공됩니다.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+          ? JSON.parse(__firebase_config) 
+          : {}; // __firebase_config가 없을 경우 빈 객체로 초기화 (오류 핸들링을 위해)
 
         // Firebase 설정이 유효한지 기본적인 검사
         if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
@@ -412,45 +404,47 @@ function App() {
     }
   }, [auth, setCurrentPage, setAuthError]);
 
+
   // 메인 콘텐츠 렌더링 함수
   const renderMainContent = () => {
     if (currentPage === 'home') {
       return (
-        <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row lg:gap-8 flex-1">
-          {/* 단어장 앱 환영 섹션 (왼쪽 컬럼) */}
-          <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 lg:mb-0 w-full lg:w-2/3 flex flex-col items-center justify-center">
+        <div className="w-full max-w-6xl mx-auto flex flex-col items-center justify-center flex-1">
+          {/* 단어장 앱 환영 섹션 */}
+          <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 w-full flex flex-col items-center justify-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2 text-center">
               나만의 단어장을 만들어 보세요!
             </h2>
-              <p className="text-lg text-gray-700 mb-4 text-center">
-                ASUKA 단어장 앱에서 새로운 단어를 추가하고, 학습하고, 관리해보세요.
-              </p>
-              <button
-                onClick={() => setCurrentPage('addWord')}
-                className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
-              >
+            <p className="text-lg text-gray-700 mb-4 text-center">
+              ASUKA 단어장 앱에서 새로운 단어를 추가하고, 학습하고, 관리해보세요.
+            </p>
+            <button
+              onClick={() => setCurrentPage('addWord')}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
+            >
               새 단어 추가하기
-              </button>
+            </button>
           </section>
-
-          {/* 로그인/사용자 정보 섹션 (오른쪽 컬럼) - 홈 페이지에 포함 */}
-          <div className="w-full lg:w-1/3"> {/* AuthFormContainer를 감싸는 div에 너비 클래스 적용 */}
-            <AuthFormContainer
-              authError={authError}
-              currentUser={currentUser}
-              userProfile={userProfile}
-              userId={userId}
-              handleLogout={handleLogout}
-              handleLogin={handleLogin}
-              email={email}
-              setEmail={setEmail}
-              password={password}
-              setPassword={setPassword}
-              setCurrentPage={setCurrentPage} // AuthFormContainer에서도 페이지 전환 가능하도록 전달
-            />
-          </div>
         </div>
       );
+    } else if (currentPage === 'loginPage') { // 새로운 로그인 페이지
+        return (
+            <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+                <AuthFormContainer
+                    authError={authError}
+                    currentUser={currentUser}
+                    userProfile={userProfile}
+                    userId={userId}
+                    handleLogout={handleLogout}
+                    handleLogin={handleLogin}
+                    email={email}
+                    setEmail={setEmail}
+                    password={password}
+                    setPassword={setPassword}
+                    setCurrentPage={setCurrentPage}
+                />
+            </section>
+        );
     } else if (currentPage === 'register') {
       return (
         // 회원가입 전용 페이지 (전체 너비, 중앙 정렬)
@@ -511,7 +505,7 @@ function App() {
                   className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   rows="4"
                   placeholder="단어의 의미를 입력하세요..."
-                ></textarea>  
+                ></textarea>
               </div>
               <button className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
                 단어 저장
@@ -558,55 +552,60 @@ function App() {
 
   return (
     // 전체 페이지 컨테이너. 화면 전체를 채우고 내용을 중앙에 배치합니다.
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter"> {/* 상단 패딩 원래대로 복원 */}
+      <div className="w-full max-w-6xl"> {/* Main content wrapper */}
+        <header className="flex justify-between items-start mb-2"> {/* mb-2를 다시 추가 */}
+          {/* Left side: App Name and Slogan */}
+          {/* ASUKA와 슬로건을 같은 줄에 배치 */}
+          <div className="flex items-baseline"> {/* flex-col 대신 flex와 items-baseline 사용 */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse">
+              ASUKA
+            </h1>
+            {/* 슬로건을 ASUKA 오른쪽에 배치하고 간격 조정 */}
+            <p className="text-lg sm:text-xl text-gray-600 ml-4"> {/* ml-4 추가하여 간격 조정 */}
+              나만의 일본어 단어장을 만들어 보세요!
+            </p>
+          </div>
 
-      {/* 커뮤니티 헤더 섹션 - 배경, 테두리, 그림자 제거 */}
-      <header className="w-full max-w-6xl pl-0 py-0 sm:py-0 mb-2 flex flex-col items-start">
-        {/* 앱 이름 */}
-        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse">
-          ASUKA
-        </h1>
-        {/* 슬로건 또는 설명 */}
-        <p className="text-lg sm:text-xl text-gray-600 max-w-2xl">
-           나만의 일본어 단어장을 만들어 보세요!
-        </p>
-      </header>
+          {/* Right side: Login/Logout/Profile links */}
+          {/* Adjusted top padding to pt-12 as requested */}
+          <div className="flex flex-col items-end text-right space-y-1 pr-4 pt-12"> 
+            {currentUser ? (
+              <>
+                <div onClick={() => setCurrentPage('profile')} className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</div>
+                <div
+                  onClick={handleLogout}
+                  className="cursor-pointer text-md font-medium text-red-600 hover:text-red-800 transition duration-300"
+                >
+                  로그아웃
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  onClick={() => setCurrentPage('loginPage')}
+                  className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
+                >
+                  로그인
+                </div>
+                <div
+                  onClick={() => setCurrentPage('register')}
+                  className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
+                >
+                  회원가입
+                </div>
+              </>
+            )}
+          </div>
+        </header>
 
-      {/* 새로운 메뉴 바 섹션 */}
-      <nav className="w-full max-w-6xl bg-white rounded-xl shadow-lg p-4 mb-8 flex justify-start items-center space-x-6 sm:space-x-8 pl-8">
-        <div onClick={() => setCurrentPage('home')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
-        <div onClick={() => setCurrentPage('vocabularyList')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어장</div>
-        <div onClick={() => setCurrentPage('addWord')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
-        
-        {currentUser ? (
-          // 로그인 상태일 때
-          <>
-            <div onClick={() => setCurrentPage('profile')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</div>
-            <div
-              onClick={handleLogout}
-              className="cursor-pointer text-lg font-medium text-red-600 hover:text-red-800 transition duration-300"
-            >
-              로그아웃
-            </div>
-          </>
-        ) : (
-          // 로그아웃 상태일 때
-          <>
-            <div
-              onClick={() => setCurrentPage('home')} // 로그인 사이드바가 있는 홈 페이지로 이동
-              className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
-            >
-              로그인
-            </div>
-            <div
-              onClick={() => setCurrentPage('register')} // 전용 회원가입 페이지로 이동
-              className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
-            >
-              회원가입
-            </div>
-          </>
-        )}
-      </nav>
+        {/* 새로운 메뉴 바 섹션 */}
+        <nav className="w-full bg-white rounded-xl shadow-lg p-4 mb-8 flex justify-start items-center space-x-6 sm:space-x-8 pl-8"> {/* mb-8을 다시 추가 */}
+          <div onClick={() => setCurrentPage('home')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
+          <div onClick={() => setCurrentPage('vocabularyList')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어장</div>
+          <div onClick={() => setCurrentPage('addWord')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
+        </nav>
+      </div> {/* End of w-full max-w-6xl wrapper */}
 
       {/* 메인 콘텐츠 영역: currentPage 값에 따라 동적으로 렌더링 */}
       <main className="w-full flex-1"> {/* flex-1로 남은 공간 차지 */}
