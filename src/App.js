@@ -4,7 +4,8 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore'; 
 
-// AuthFormContainer 컴포넌트: 로그인 폼을 렌더링합니다.
+// AuthFormContainer component: Renders the login form.
+// If the user clicks the registration link inside, it navigates to a dedicated registration page.
 const AuthFormContainer = ({
   authError,
   currentUser,
@@ -16,16 +17,16 @@ const AuthFormContainer = ({
   setEmail,
   password,
   setPassword,
-  setCurrentPage, // 페이지 전환을 위해 추가
+  setCurrentPage, // Added for page navigation
 }) => {
-  // AuthFormContainer는 기본적으로 로그인 폼을 보여줍니다.
-  // 내부에서 '회원가입' 클릭 시 메인 페이지를 'register'로 전환합니다.
+  // AuthFormContainer primarily displays the login form.
+  // Clicking 'Sign Up' inside switches the main page to 'register'.
   const handleRegisterLinkClick = () => {
     setCurrentPage('register');
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit w-full max-w-md mx-auto"> {/* 너비 조정 */}
+    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit w-full max-w-md mx-auto"> {/* Width adjustment */}
       {authError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <strong className="font-bold">오류:</strong>
@@ -96,7 +97,7 @@ const AuthFormContainer = ({
           </form>
           <div className="mt-4 text-center text-sm">
             <div
-              onClick={handleRegisterLinkClick} // 회원가입 페이지로 이동
+              onClick={handleRegisterLinkClick} // Navigate to registration page
               className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block"
             >
               회원가입
@@ -111,7 +112,7 @@ const AuthFormContainer = ({
 };
 
 
-// RegisterPage 컴포넌트: 전용 회원가입 페이지를 렌더링합니다.
+// RegisterPage component: Renders a dedicated registration page.
 const RegisterPage = ({
   authError,
   handleRegister,
@@ -119,10 +120,10 @@ const RegisterPage = ({
   setEmail,
   password,
   setPassword,
-  setCurrentPage, // 회원가입 성공 후 페이지 전환을 위해 추가
+  setCurrentPage, // Added for page navigation after successful registration
 }) => {
   const handleLoginLinkClick = () => {
-    setCurrentPage('loginPage'); // 로그인 페이지로 이동
+    setCurrentPage('loginPage'); // Navigate to login page
   };
 
   return (
@@ -188,118 +189,118 @@ const RegisterPage = ({
 
 
 function App() {
-  // Firebase 관련 상태 변수
+  // Firebase related state variables
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null); // 현재 로그인된 사용자 객체
-  const [userId, setUserId] = useState(null); // 현재 사용자 ID
-  const [loadingAuth, setLoadingAuth] = useState(true); // 인증 초기 로딩 상태
-  const [authError, setAuthError] = useState(null); // 인증 관련 오류 메시지
+  const [currentUser, setCurrentUser] = useState(null); // Current logged-in user object
+  const [userId, setUserId] = useState(null); // Current user ID
+  const [loadingAuth, setLoadingAuth] = useState(true); // Initial authentication loading state
+  const [authError, setAuthError] = useState(null); // Authentication related error message
 
-  // 로그인/회원가입 폼 상태
+  // Login/Registration form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // 현재 페이지 상태 (SPA 라우팅 역할)
+  // Current page state (SPA routing role)
   const [currentPage, setCurrentPage] = useState('home'); // 'home', 'vocabularyList', 'addWord', 'profile', 'register', 'loginPage'
 
-  // 사용자 프로필 데이터 (Firestore에서 불러올 데이터)
+  // User profile data (data to be loaded from Firestore)
   const [userProfile, setUserProfile] = useState(null);
 
-  // Firebase 초기화 및 인증 상태 리스너 설정
+  // Firebase initialization and authentication state listener setup
   useEffect(() => {
     let authUnsubscribe;
-    let currentProfileUnsubscribe = null; // 현재 활성 프로필 리스너의 unsubscribe 함수를 저장
+    let currentProfileUnsubscribe = null; // Stores the unsubscribe function for the currently active profile listener
 
-    // 비동기 즉시 실행 함수를 사용하여 useEffect 내에서 await를 사용
+    // Use an async IIFE to use await inside useEffect
     (async () => {
       try {
-        console.log("Firebase 초기화 프로세스 시작.");
+        console.log("Starting Firebase initialization process.");
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
-        // Canvas 환경에서 __firebase_config는 전역으로 제공됩니다.
+        // In the Canvas environment, __firebase_config is provided globally.
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
           ? JSON.parse(__firebase_config) 
-          : {}; // __firebase_config가 없을 경우 빈 객체로 초기화 (오류 핸들링을 위해)
+          : {}; // Initialize with an empty object if __firebase_config is not present (for error handling)
 
-        // Firebase 설정이 유효한지 기본적인 검사
+        // Basic validation for Firebase configuration
         if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-            throw new Error("Firebase 설정이 누락되었거나 불완전합니다. 유효한 API Key와 Project ID를 제공해주세요.");
+            throw new Error("Firebase configuration is missing or incomplete. Please provide a valid API Key and Project ID.");
         }
 
-        console.log("Firebase 설정 로드 완료. 프로젝트 ID:", firebaseConfig.projectId);
+        console.log("Firebase configuration loaded successfully. Project ID:", firebaseConfig.projectId);
 
-        // Firebase 앱 초기화
+        // Initialize Firebase app
         const app = initializeApp(firebaseConfig);
-        console.log("Firebase 앱 초기화 완료.");
+        console.log("Firebase app initialized.");
         const authInstance = getAuth(app);
         setAuth(authInstance);
         const dbInstance = getFirestore(app);
         setDb(dbInstance);
-        console.log("인증 및 Firestore 인스턴스 설정 완료.");
+        console.log("Auth and Firestore instances set up.");
 
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // 초기 로그인 시도 (커스텀 토큰 또는 익명)
+        // Attempt initial login (custom token or anonymous)
         try {
           if (initialAuthToken) {
-            console.log("커스텀 토큰으로 로그인 시도 중...");
+            console.log("Attempting login with custom token...");
             await signInWithCustomToken(authInstance, initialAuthToken);
-            console.log("커스텀 토큰으로 로그인 성공.");
+            console.log("Login with custom token successful.");
           } else {
-            console.log("사용자 정의 토큰 없음. 익명 로그인 시도 중...");
+            console.log("No custom token. Attempting anonymous login...");
             await signInAnonymously(authInstance);
-            console.log("익명 로그인 성공.");
+            console.log("Anonymous login successful.");
           }
         } catch (initialSignInError) {
-          console.error("초기 로그인 (토큰 또는 익명) 실패:", initialSignInError);
-          setAuthError(`초기 로그인 실패: ${initialSignInError.message || initialSignInError.code}. Firebase 콘솔에서 익명 인증이 활성화되어 있는지 확인하세요.`);
+          console.error("Initial login (token or anonymous) failed:", initialSignInError);
+          setAuthError(`Initial login failed: ${initialSignInError.message || initialSignInError.code}. Please ensure anonymous authentication is enabled in Firebase console.`);
           setLoadingAuth(false);
           return;
         }
 
-        // 초기 로그인 시도가 완료된 후 인증 상태 리스너 설정
+        // Set up authentication state listener after initial login attempt
         authUnsubscribe = onAuthStateChanged(authInstance, async (user) => {
-          console.log("onAuthStateChanged 콜백 실행. 사용자:", user ? user.uid : "null (로그아웃 상태)");
+          console.log("onAuthStateChanged callback executed. User:", user ? user.uid : "null (logged out)");
           
           if (currentProfileUnsubscribe) {
             currentProfileUnsubscribe();
             currentProfileUnsubscribe = null;
-            console.log("이전 사용자 프로필 리스너 해제됨.");
+            console.log("Previous user profile listener unsubscribed.");
           }
 
           if (user) {
             setCurrentUser(user);
             setUserId(user.uid);
-            console.log(`사용자 ${user.uid}가 로그인되었습니다. 프로필 로드 시도 중...`);
+            console.log(`User ${user.uid} logged in. Attempting to load profile...`);
             
-            console.log(`Firestore 프로필 경로: artifacts/${appId}/users/${user.uid}/profile/public`);
+            console.log(`Firestore profile path: artifacts/${appId}/users/${user.uid}/profile/public`);
 
             const userDocRef = doc(dbInstance, `artifacts/${appId}/users/${user.uid}/profile`, 'public');
             currentProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
               if (docSnap.exists()) {
-                console.log("사용자 프로필 데이터 로드됨:", docSnap.data());
+                console.log("User profile data loaded:", docSnap.data());
                 setUserProfile(docSnap.data());
               } else {
-                console.log("사용자 프로필을 찾을 수 없음. 기본 프로필 생성 시도 중...");
+                console.log("User profile not found. Attempting to create default profile...");
                 setDoc(userDocRef, { email: user.email, createdAt: new Date().toISOString() }, { merge: true })
                   .then(() => {
-                    console.log("기본 프로필이 성공적으로 생성되었습니다.");
+                    console.log("Default profile created successfully.");
                     setUserProfile({ email: user.email, createdAt: new Date().toISOString() });
                   })
                   .catch((profileCreateError) => {
-                    console.error("기본 사용자 프로필 생성 중 오류 발생:", profileCreateError);
-                    setAuthError(`프로필 생성 오류: ${profileCreateError.message}`);
+                    console.error("Error creating default user profile:", profileCreateError);
+                    setAuthError(`Profile creation error: ${profileCreateError.message}`);
                   });
               }
               setLoadingAuth(false);
             }, (profileSnapshotError) => {
-              console.error("사용자 프로필 리스닝 중 오류 발생 (onSnapshot 콜백 오류):", profileSnapshotError);
-              setAuthError(`사용자 프로필 로드 중 오류: ${profileSnapshotError.message}`);
+              console.error("Error listening to user profile (onSnapshot callback error):", profileSnapshotError);
+              setAuthError(`Error loading user profile: ${profileSnapshotError.message}`);
               setLoadingAuth(false);
             });
           } else {
-            console.log("인증된 사용자 없음. 현재 사용자를 null로 설정.");
+            console.log("No authenticated user. Setting current user to null.");
             setCurrentUser(null);
             setUserId(null);
             setUserProfile(null);
@@ -308,31 +309,31 @@ function App() {
         });
 
       } catch (e) {
-        console.error("useEffect에서 치명적인 Firebase 초기화 오류 발생:", e);
-        setAuthError(`Firebase 초기화 중 치명적인 오류: ${e.message}`);
+        console.error("Fatal Firebase initialization error in useEffect:", e);
+        setAuthError(`Fatal Firebase initialization error: ${e.message}`);
         setLoadingAuth(false);
       }
     })();
 
     return () => {
-      console.log("useEffect 정리 함수 시작.");
+      console.log("useEffect cleanup function started.");
       if (authUnsubscribe) {
         authUnsubscribe();
-        console.log("인증 상태 리스너 해제됨.");
+        console.log("Auth state listener unsubscribed.");
       }
       if (currentProfileUnsubscribe) {
         currentProfileUnsubscribe();
-        console.log("Firestore 프로필 리스너 해제됨.");
+        console.log("Firestore profile listener unsubscribed.");
       }
     };
   }, []);
 
-  // 회원가입 처리 함수 (useCallback으로 래핑)
+  // Registration handler function (wrapped with useCallback)
   const handleRegister = useCallback(async (e) => {
     e.preventDefault();
     setAuthError(null);
     if (!auth || !db) {
-      setAuthError("Firebase가 초기화되지 않았습니다.");
+      setAuthError("Firebase is not initialized.");
       return;
     }
     try {
@@ -346,7 +347,7 @@ function App() {
       });
       setEmail('');
       setPassword('');
-      setCurrentPage('home'); // 회원가입 성공 후 홈 페이지로 이동 (자동 로그인)
+      setCurrentPage('home'); // Navigate to home page after successful registration (auto-login)
     } catch (error) {
       console.error("Error during registration:", error);
       let errorMessage = "회원가입 중 오류가 발생했습니다.";
@@ -361,19 +362,19 @@ function App() {
     }
   }, [auth, db, email, password, setCurrentPage, setAuthError]);
 
-  // 로그인 처리 함수 (useCallback으로 래핑)
+  // Login handler function (wrapped with useCallback)
   const handleLogin = useCallback(async (e) => {
     e.preventDefault();
     setAuthError(null);
     if (!auth) {
-      setAuthError("Firebase가 초기화되지 않았습니다.");
+      setAuthError("Firebase is not initialized.");
       return;
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
       setEmail('');
       setPassword('');
-      setCurrentPage('home'); // 로그인 성공 후 홈 페이지로 이동
+      setCurrentPage('home'); // Navigate to home page after successful login
     } catch (error) {
       console.error("Error during login:", error);
       let errorMessage = "로그인 중 오류가 발생했습니다. 이메일 또는 비밀번호를 확인해주세요.";
@@ -388,16 +389,16 @@ function App() {
     }
   }, [auth, email, password, setCurrentPage, setAuthError]);
 
-  // 로그아웃 처리 함수 (useCallback으로 래핑)
+  // Logout handler function (wrapped with useCallback)
   const handleLogout = useCallback(async () => {
     if (!auth) {
-      setAuthError("Firebase가 초기화되지 않았습니다.");
+      setAuthError("Firebase is not initialized.");
       return;
     }
     try {
       await signOut(auth);
       setAuthError(null);
-      setCurrentPage('home'); // 로그아웃 후 홈 페이지로 이동
+      setCurrentPage('home'); // Navigate to home page after logout
     } catch (error) {
       console.error("Error during logout:", error);
       setAuthError("로그아웃 중 오류가 발생했습니다: " + error.message);
@@ -405,12 +406,12 @@ function App() {
   }, [auth, setCurrentPage, setAuthError]);
 
 
-  // 메인 콘텐츠 렌더링 함수
+  // Main content rendering function
   const renderMainContent = () => {
     if (currentPage === 'home') {
       return (
         <div className="w-full max-w-6xl mx-auto flex flex-col items-center justify-center flex-1">
-          {/* 단어장 앱 환영 섹션 */}
+          {/* Vocabulary App Welcome Section */}
           <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 w-full flex flex-col items-center justify-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2 text-center">
               나만의 단어장을 만들어 보세요!
@@ -427,7 +428,7 @@ function App() {
           </section>
         </div>
       );
-    } else if (currentPage === 'loginPage') { // 새로운 로그인 페이지
+    } else if (currentPage === 'loginPage') { // New login page
         return (
             <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
                 <AuthFormContainer
@@ -447,7 +448,7 @@ function App() {
         );
     } else if (currentPage === 'register') {
       return (
-        // 회원가입 전용 페이지 (전체 너비, 중앙 정렬)
+        // Dedicated registration page (full width, centered)
         <RegisterPage
           authError={authError}
           handleRegister={handleRegister}
@@ -455,7 +456,7 @@ function App() {
           setEmail={setEmail}
           password={password}
           setPassword={setPassword}
-          setCurrentPage={setCurrentPage} // 회원가입 성공 후 또는 로그인 링크 클릭 시 페이지 전환
+          setCurrentPage={setCurrentPage} // Page navigation after successful registration or clicking login link
         />
       );
     } else if (currentPage === 'vocabularyList') {
@@ -507,7 +508,8 @@ function App() {
                   placeholder="단어의 의미를 입력하세요..."
                 ></textarea>
               </div>
-              <button className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+              <button
+                  className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
                 단어 저장
               </button>
             </div>
@@ -538,10 +540,10 @@ function App() {
         </section>
       );
     }
-    return null; // 기본적으로 아무것도 렌더링하지 않음
+    return null; // Render nothing by default
   };
 
-  // 인증 로딩 중일 때 표시
+  // Display loading state for authentication
   if (loadingAuth) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center font-inter">
@@ -551,25 +553,25 @@ function App() {
   }
 
   return (
-    // 전체 페이지 컨테이너. 화면 전체를 채우고 내용을 중앙에 배치합니다.
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter"> {/* 상단 패딩 원래대로 복원 */}
+    // Overall page container. Fills the entire screen and centers content.
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter"> {/* Restored original top padding */}
       <div className="w-full max-w-6xl"> {/* Main content wrapper */}
-        <header className="flex justify-between items-start mb-2"> {/* mb-2를 다시 추가 */}
+        <header className="flex justify-between items-baseline mb-0">
           {/* Left side: App Name and Slogan */}
-          {/* ASUKA와 슬로건을 같은 줄에 배치 */}
-          <div className="flex items-baseline"> {/* flex-col 대신 flex와 items-baseline 사용 */}
+          {/* Changed to flex and items-baseline to put slogan on the same line as ASUKA */}
+          <div className="flex items-end">
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse">
               ASUKA
             </h1>
-            {/* 슬로건을 ASUKA 오른쪽에 배치하고 간격 조정 */}
-            <p className="text-lg sm:text-xl text-gray-600 ml-4"> {/* ml-4 추가하여 간격 조정 */}
+            {/* Slogan positioned to the right of ASUKA with margin */}
+            <p className="text-lg sm:text-xl text-gray-600 ml-4"> 
               나만의 일본어 단어장을 만들어 보세요!
             </p>
           </div>
 
           {/* Right side: Login/Logout/Profile links */}
           {/* Adjusted top padding to pt-12 as requested */}
-          <div className="flex flex-col items-end text-right space-y-1 pr-4 pt-12"> 
+          <div className="flex flex-col items-end justify-end text-right space-y-1 self-end">
             {currentUser ? (
               <>
                 <div onClick={() => setCurrentPage('profile')} className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</div>
@@ -599,20 +601,20 @@ function App() {
           </div>
         </header>
 
-        {/* 새로운 메뉴 바 섹션 */}
-        <nav className="w-full bg-white rounded-xl shadow-lg p-4 mb-8 flex justify-start items-center space-x-6 sm:space-x-8 pl-8"> {/* mb-8을 다시 추가 */}
+        {/* New navigation bar section */}
+        <nav className="w-full bg-white rounded-xl shadow-lg p-4 mb-4 mt-2 flex justify-start items-center space-x-6 sm:space-x-8 pl-8">
           <div onClick={() => setCurrentPage('home')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
           <div onClick={() => setCurrentPage('vocabularyList')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어장</div>
           <div onClick={() => setCurrentPage('addWord')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
         </nav>
       </div> {/* End of w-full max-w-6xl wrapper */}
 
-      {/* 메인 콘텐츠 영역: currentPage 값에 따라 동적으로 렌더링 */}
-      <main className="w-full flex-1"> {/* flex-1로 남은 공간 차지 */}
+      {/* Main content area: Dynamically rendered based on currentPage */}
+      <main className="w-full flex-1"> {/* Occupies remaining space */}
         {renderMainContent()}
       </main>
 
-      {/* 푸터 섹션 */}
+      {/* Footer section */}
       <footer className="mt-8 text-gray-500 text-sm">
         <p>&copy; 2024 ASUKA. All rights reserved.</p>
       </footer>
