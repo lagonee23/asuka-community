@@ -1,11 +1,12 @@
 /* global __app_id, __firebase_config, __initial_auth_token */
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore'; 
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 
 // AuthFormContainer component: Renders the login form.
-// If the user clicks the registration link inside, it navigates to a dedicated registration page.
+// If the user clicks the registration link, it navigates to a dedicated registration page.
 const AuthFormContainer = ({
   authError,
   currentUser,
@@ -13,17 +14,12 @@ const AuthFormContainer = ({
   userId,
   handleLogout,
   handleLogin,
+  handleGoogleSignIn, // Added for Google Sign-In
   email,
   setEmail,
   password,
   setPassword,
-  setCurrentPage, // Added for page navigation
 }) => {
-  // AuthFormContainer primarily displays the login form.
-  // Clicking 'Sign Up' inside switches the main page to 'register'.
-  const handleRegisterLinkClick = () => {
-    setCurrentPage('register');
-  };
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit w-full max-w-md mx-auto"> {/* Width adjustment */}
@@ -94,14 +90,18 @@ const AuthFormContainer = ({
             >
               로그인
             </button>
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 mt-2"
+            >
+              Google 계정으로 로그인
+            </button>
           </form>
           <div className="mt-4 text-center text-sm">
-            <div
-              onClick={handleRegisterLinkClick} // Navigate to registration page
-              className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block"
-            >
+            <Link to="/register" className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block">
               회원가입
-            </div>
+            </Link>
             <span className="text-gray-400">|</span>
             <div className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block">비밀번호 찾기</div>
           </div>
@@ -120,11 +120,9 @@ const RegisterPage = ({
   setEmail,
   password,
   setPassword,
-  setCurrentPage, // Added for page navigation after successful registration
+  username,
+  setUsername,
 }) => {
-  const handleLoginLinkClick = () => {
-    setCurrentPage('loginPage'); // Navigate to login page
-  };
 
   return (
     <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8">
@@ -138,6 +136,21 @@ const RegisterPage = ({
         </div>
       )}
       <form onSubmit={handleRegister} className="flex flex-col space-y-4">
+        <div>
+          <label htmlFor="register-username" className="block text-gray-700 text-sm font-bold mb-2">
+            사용자 이름
+          </label>
+          <input
+            type="text"
+            id="register-username"
+            name="username"
+            placeholder="사용자 이름을 입력하세요"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+            required
+          />
+        </div>
         <div>
           <label htmlFor="register-email" className="block text-gray-700 text-sm font-bold mb-2">
             이메일
@@ -176,12 +189,9 @@ const RegisterPage = ({
         </button>
       </form>
       <div className="mt-4 text-center text-sm">
-        <div
-          onClick={handleLoginLinkClick}
-          className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block"
-        >
+        <Link to="/login" className="cursor-pointer text-indigo-600 hover:underline mx-2 inline-block">
           이미 계정이 있으신가요? 로그인
-        </div>
+        </Link>
       </div>
     </section>
   );
@@ -189,6 +199,7 @@ const RegisterPage = ({
 
 
 function App() {
+  const navigate = useNavigate();
   // Firebase related state variables
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
@@ -200,9 +211,7 @@ function App() {
   // Login/Registration form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  // Current page state (SPA routing role)
-  const [currentPage, setCurrentPage] = useState('home'); // 'home', 'vocabularyList', 'addWord', 'profile', 'register', 'loginPage'
+  const [username, setUsername] = useState('');
 
   // User profile data (data to be loaded from Firestore)
   const [userProfile, setUserProfile] = useState(null);
@@ -219,9 +228,16 @@ function App() {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // In the Canvas environment, __firebase_config is provided globally.
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-          ? JSON.parse(__firebase_config) 
-          : {}; // Initialize with an empty object if __firebase_config is not present (for error handling)
+        const firebaseConfig = typeof __firebase_config !== 'undefined'
+          ? JSON.parse(__firebase_config)
+          : {
+              apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+              authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+              projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+              storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+              messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+              appId: process.env.REACT_APP_FIREBASE_APP_ID,
+            };
 
         // Basic validation for Firebase configuration
         if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
@@ -342,12 +358,13 @@ function App() {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'public'), {
         email: user.email,
-        username: email.split('@')[0],
+        username: username,
         createdAt: new Date().toISOString(),
       });
       setEmail('');
       setPassword('');
-      setCurrentPage('home'); // Navigate to home page after successful registration (auto-login)
+      setUsername('');
+      navigate('/'); // Navigate to home page after successful registration (auto-login)
     } catch (error) {
       console.error("Error during registration:", error);
       let errorMessage = "회원가입 중 오류가 발생했습니다.";
@@ -360,7 +377,7 @@ function App() {
       }
       setAuthError(errorMessage);
     }
-  }, [auth, db, email, password, setCurrentPage, setAuthError]);
+  }, [auth, db, email, password, username, navigate, setAuthError]);
 
   // Login handler function (wrapped with useCallback)
   const handleLogin = useCallback(async (e) => {
@@ -374,7 +391,7 @@ function App() {
       await signInWithEmailAndPassword(auth, email, password);
       setEmail('');
       setPassword('');
-      setCurrentPage('home'); // Navigate to home page after successful login
+      navigate('/'); // Navigate to home page after successful login
     } catch (error) {
       console.error("Error during login:", error);
       let errorMessage = "로그인 중 오류가 발생했습니다. 이메일 또는 비밀번호를 확인해주세요.";
@@ -387,7 +404,44 @@ function App() {
       }
       setAuthError(errorMessage);
     }
-  }, [auth, email, password, setCurrentPage, setAuthError]);
+  }, [auth, email, password, navigate, setAuthError]);
+
+  const handleGoogleSignIn = useCallback(async () => {
+    if (!auth || !db) {
+      setAuthError("Firebase is not initialized.");
+      return;
+    }
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      const userDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'public');
+      const docSnap = await getDoc(userDocRef);
+
+      if (!docSnap.exists()) {
+        // Create profile if it doesn't exist
+        await setDoc(userDocRef, {
+          email: user.email,
+          username: user.displayName || 'Google User',
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      navigate('/');
+    } catch (error) {
+      console.error("Error during Google sign-in:", error);
+      setAuthError(`Google 로그인 중 오류가 발생했습니다: ${error.message}`);
+    }
+  }, [auth, db, navigate, setAuthError]);
+
+  const handleAddWordClick = useCallback(() => {
+    if (currentUser) {
+      navigate('/add-word');
+    } else {
+      navigate('/login');
+    }
+  }, [currentUser, navigate]);
 
   // Logout handler function (wrapped with useCallback)
   const handleLogout = useCallback(async () => {
@@ -398,21 +452,21 @@ function App() {
     try {
       await signOut(auth);
       setAuthError(null);
-      setCurrentPage('home'); // Navigate to home page after logout
+      navigate('/'); // Navigate to home page after logout
     } catch (error) {
       console.error("Error during logout:", error);
       setAuthError("로그아웃 중 오류가 발생했습니다: " + error.message);
     }
-  }, [auth, setCurrentPage, setAuthError]);
+  }, [auth, navigate, setAuthError]);
 
 
   // Main content rendering function
   const renderMainContent = () => {
     if (currentPage === 'home') {
       return (
-        <div className="w-full max-w-6xl mx-auto flex flex-col items-center justify-center flex-1">
+                <div className="w-full max-w-6xl mx-auto flex flex-col flex-1">
           {/* Vocabulary App Welcome Section */}
-          <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 w-full flex flex-col items-center justify-center">
+                    <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 w-full flex-1 flex flex-col items-center justify-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2 text-center">
               나만의 단어장을 만들어 보세요!
             </h2>
@@ -420,7 +474,7 @@ function App() {
               ASUKA 단어장 앱에서 새로운 단어를 추가하고, 학습하고, 관리해보세요.
             </p>
             <button
-              onClick={() => setCurrentPage('addWord')}
+              onClick={handleAddWordClick}
               className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
             >
               새 단어 추가하기
@@ -430,7 +484,7 @@ function App() {
       );
     } else if (currentPage === 'loginPage') { // New login page
         return (
-            <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+            <section className="w-full max-w-xl mx-auto p-2 sm:p-8 flex-1">
                 <AuthFormContainer
                     authError={authError}
                     currentUser={currentUser}
@@ -438,6 +492,7 @@ function App() {
                     userId={userId}
                     handleLogout={handleLogout}
                     handleLogin={handleLogin}
+                    handleGoogleSignIn={handleGoogleSignIn}
                     email={email}
                     setEmail={setEmail}
                     password={password}
@@ -456,6 +511,8 @@ function App() {
           setEmail={setEmail}
           password={password}
           setPassword={setPassword}
+          username={username}
+          setUsername={setUsername}
           setCurrentPage={setCurrentPage} // Page navigation after successful registration or clicking login link
         />
       );
@@ -469,7 +526,7 @@ function App() {
             <p className="text-xl mb-4">여기에 저장된 단어 목록이 표시됩니다.</p>
             <p className="text-base text-gray-400">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
             <button
-              onClick={() => setCurrentPage('addWord')}
+              onClick={handleAddWordClick}
               className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
             >
               단어 추가하기
@@ -560,9 +617,9 @@ function App() {
           {/* Left side: App Name and Slogan */}
           {/* Changed to flex and items-baseline to put slogan on the same line as ASUKA */}
           <div className="flex items-end">
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse">
+            <Link to="/" className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse cursor-pointer">
               ASUKA
-            </h1>
+            </Link>
             {/* Slogan positioned to the right of ASUKA with margin */}
             <p className="text-lg sm:text-xl text-gray-600 ml-4"> 
               나만의 일본어 단어장을 만들어 보세요!
@@ -574,7 +631,7 @@ function App() {
           <div className="flex flex-col items-end justify-end text-right space-y-1 self-end">
             {currentUser ? (
               <>
-                <div onClick={() => setCurrentPage('profile')} className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</div>
+                <Link to="/profile" className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300">내 정보</Link>
                 <div
                   onClick={handleLogout}
                   className="cursor-pointer text-md font-medium text-red-600 hover:text-red-800 transition duration-300"
@@ -584,18 +641,12 @@ function App() {
               </>
             ) : (
               <>
-                <div
-                  onClick={() => setCurrentPage('loginPage')}
-                  className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
-                >
+                <Link to="/login" className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300">
                   로그인
-                </div>
-                <div
-                  onClick={() => setCurrentPage('register')}
-                  className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300"
-                >
+                </Link>
+                <Link to="/register" className="cursor-pointer text-md font-medium text-gray-700 hover:text-indigo-600 transition duration-300">
                   회원가입
-                </div>
+                </Link>
               </>
             )}
           </div>
@@ -603,15 +654,140 @@ function App() {
 
         {/* New navigation bar section */}
         <nav className="w-full bg-white rounded-xl shadow-lg p-4 mb-4 mt-2 flex justify-start items-center space-x-6 sm:space-x-8 pl-8">
-          <div onClick={() => setCurrentPage('home')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</div>
-          <div onClick={() => setCurrentPage('vocabularyList')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어장</div>
-          <div onClick={() => setCurrentPage('addWord')} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
+          <Link to="/" className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</Link>
+          <Link to="/vocabulary" className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어장</Link>
+          <div onClick={handleAddWordClick} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
         </nav>
       </div> {/* End of w-full max-w-6xl wrapper */}
 
       {/* Main content area: Dynamically rendered based on currentPage */}
-      <main className="w-full flex-1"> {/* Occupies remaining space */}
-        {renderMainContent()}
+      <main className="w-full flex-1 flex flex-col"> {/* Occupies remaining space and becomes a flex container */}
+        <Routes>
+          <Route path="/" element={
+            <div className="w-full max-w-6xl mx-auto flex flex-col flex-1">
+              <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 w-full flex-1 flex flex-col items-center justify-center">
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2 text-center">
+                  나만의 단어장을 만들어 보세요!
+                </h2>
+                <p className="text-lg text-gray-700 mb-4 text-center">
+                  ASUKA 단어장 앱에서 새로운 단어를 추가하고, 학습하고, 관리해보세요.
+                </p>
+                <button
+                  onClick={handleAddWordClick}
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
+                >
+                  새 단어 추가하기
+                </button>
+              </section>
+            </div>
+          } />
+          <Route path="/login" element={
+            <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+              <AuthFormContainer
+                authError={authError}
+                currentUser={currentUser}
+                userProfile={userProfile}
+                userId={userId}
+                handleLogout={handleLogout}
+                handleLogin={handleLogin}
+                handleGoogleSignIn={handleGoogleSignIn}
+                email={email}
+                setEmail={setEmail}
+                password={password}
+                setPassword={setPassword}
+              />
+            </section>
+          } />
+          <Route path="/register" element={
+            <RegisterPage
+              authError={authError}
+              handleRegister={handleRegister}
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              username={username}
+              setUsername={setUsername}
+            />
+          } />
+          <Route path="/vocabulary" element={
+            <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1 flex flex-col">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+                내 단어장
+              </h2>
+              <div className="text-gray-500 text-center py-12 flex-1 flex flex-col justify-center items-center">
+                <p className="text-xl mb-4">여기에 저장된 단어 목록이 표시됩니다.</p>
+                <p className="text-base text-gray-400">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
+                <button
+                  onClick={handleAddWordClick}
+                  className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+                >
+                  단어 추가하기
+                </button>
+              </div>
+            </section>
+          } />
+          <Route path="/add-word" element={
+            <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+                단어 추가
+              </h2>
+              <div className="text-gray-500 text-center py-12">
+                <p className="text-xl mb-4">새로운 단어를 추가할 수 있는 폼이 여기에 옵니다.</p>
+                <div className="flex flex-col space-y-4 max-w-md mx-auto">
+                  <div>
+                    <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+                      단어
+                    </label>
+                    <input
+                      type="text"
+                      id="word"
+                      placeholder="새로운 단어를 입력하세요"
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="meaning" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+                      의미
+                    </label>
+                    <textarea
+                      id="meaning"
+                      className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      rows="4"
+                      placeholder="단어의 의미를 입력하세요..."
+                    ></textarea>
+                  </div>
+                  <button
+                      className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+                    단어 저장
+                  </button>
+                </div>
+              </div>
+            </section>
+          } />
+          <Route path="/profile" element={
+            <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+                내 정보
+              </h2>
+              <div className="text-gray-500 text-center py-12">
+                <p className="text-xl mb-4">사용자 프로필 정보가 여기에 표시됩니다.</p>
+                {currentUser && userProfile ? (
+                  <div className="text-left max-w-md mx-auto">
+                    <p><strong>이메일:</strong> {userProfile.email}</p>
+                    {userProfile.username && <p><strong>사용자 이름:</strong> {userProfile.username}</p>}
+                    <p><strong>가입일:</strong> {new Date(userProfile.createdAt).toLocaleDateString('ko-KR')}</p>
+                    <p className="text-sm text-gray-500 mt-4">
+                      (사용자 ID: <span className="font-mono break-all">{userId}</span>)
+                    </p>
+                  </div>
+                ) : (
+                  <p>로그인 후 프로필을 확인해주세요.</p>
+                )}
+              </div>
+            </section>
+          } />
+        </Routes>
       </main>
 
       {/* Footer section */}
