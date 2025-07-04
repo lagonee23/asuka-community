@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection } from 'firebase/firestore';
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, query, where } from 'firebase/firestore';
+import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 
 // AuthFormContainer component: Renders the login form.
 // If the user clicks the registration link, it navigates to a dedicated registration page.
@@ -198,6 +198,204 @@ const RegisterPage = ({
 };
 
 
+const VocabularyList = ({ auth, db, currentUser, userId, appId }) => {
+  const { language } = useParams();
+  const [vocabulary, setVocabulary] = useState([]);
+  const [loadingVocabulary, setLoadingVocabulary] = useState(true);
+  const [vocabularyError, setVocabularyError] = useState(null);
+
+  useEffect(() => {
+    if (!currentUser || !db || !language) {
+      setVocabulary([]);
+      setLoadingVocabulary(false);
+      return;
+    }
+
+    setLoadingVocabulary(true);
+    setVocabularyError(null);
+
+    const vocabularyCollectionRef = collection(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`);
+    const q = query(vocabularyCollectionRef, where("language", "==", language));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const words = [];
+      snapshot.forEach(doc => {
+        words.push({ id: doc.id, ...doc.data() });
+      });
+      setVocabulary(words);
+      setLoadingVocabulary(false);
+      console.log(`Vocabulary loaded for ${language}:`, words);
+    }, (error) => {
+      console.error(`Error loading ${language} vocabulary:`, error);
+      setVocabularyError(`단어장 불러오기 오류: ${error.message}`);
+      setLoadingVocabulary(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, db, language, appId]); // Depend on currentUser, db, language, appId
+
+  if (loadingVocabulary) {
+    return <p className="text-center text-gray-700">단어장을 불러오는 중...</p>;
+  }
+
+  if (vocabularyError) {
+    return <p className="text-center text-red-500">{vocabularyError}</p>;
+  }
+
+  if (!currentUser) {
+    return <p className="text-center text-gray-500">로그인 후 단어장을 확인해주세요.</p>;
+  }
+
+  return (
+    <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1 flex flex-col">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+        {language === 'japanese' ? '일본어 단어장' : '영어 단어장'}
+      </h2>
+      {vocabulary.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {vocabulary.map((item) => (
+            <div key={item.id} className="bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.word}</h3>
+              <p className="text-gray-600">{item.meaning}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-gray-500 text-center py-12 flex-1 flex flex-col justify-center items-center">
+          <p className="text-xl mb-4">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
+          <Link to={`/add-word/${language}`} className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+            단어 추가하기
+          </Link>
+        </div>
+      )}
+    </section>
+  );
+};
+
+const AddWordForm = ({
+  authError,
+  setAuthError,
+  word,
+  setWord,
+  meaning,
+  setMeaning,
+  selectedLanguage,
+  setSelectedLanguage,
+  handleSaveWord,
+}) => {
+  const langFromUrl = useParams().lang; // Get lang from URL for initial setting
+
+  useEffect(() => {
+    if (langFromUrl) {
+      setSelectedLanguage(langFromUrl);
+    }
+  }, [langFromUrl, setSelectedLanguage]);
+
+  return (
+    <div className="text-gray-500 text-center py-12">
+      <p className="text-xl mb-4">새로운 단어를 추가할 수 있는 폼이 여기에 옵니다.</p>
+      {authError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">오류:</strong>
+          <span className="block sm:inline ml-2">{authError}</span>
+        </div>
+      )}
+      <div className="flex flex-col space-y-4 max-w-md mx-auto">
+        {/* Language Selection - Conditionally rendered */}
+        {!langFromUrl && ( // Use langFromUrl to conditionally render
+          <div className="flex items-center space-x-4 mb-4">
+            <span className="block text-gray-700 text-sm font-bold">언어 선택:</span>
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                className="form-radio text-indigo-600"
+                name="language"
+                value="japanese"
+                checked={selectedLanguage === 'japanese'}
+                onChange={() => setSelectedLanguage('japanese')}
+              />
+              <span className="ml-2 text-gray-700">일본어</span>
+            </label>
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                className="form-radio text-indigo-600"
+                name="language"
+                value="english"
+                checked={selectedLanguage === 'english'}
+                onChange={() => setSelectedLanguage('english')}
+              />
+              <span className="ml-2 text-gray-700">영어</span>
+            </label>
+          </div>
+        )}
+        <div>
+          <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+            단어
+          </label>
+          <input
+            type="text"
+            id="word"
+            placeholder="새로운 단어를 입력하세요"
+            value={word}
+            onChange={(e) => {
+              console.log("Word input changed:", e.target.value);
+              setWord(e.target.value);
+            }}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label htmlFor="meaning" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+            의미
+          </label>
+          <textarea
+            id="meaning"
+            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            rows="4"
+            placeholder="단어의 의미를 입력하세요..."
+            value={meaning}
+            onChange={(e) => {
+              console.log("Meaning textarea changed:", e.target.value);
+              setMeaning(e.target.value);
+            }}
+          ></textarea>
+        </div>
+        <button
+          onClick={handleSaveWord}
+          className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+          단어 저장
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeaning, selectedLanguage, setSelectedLanguage, handleSaveWord }) => {
+  const { lang } = useParams();
+
+  const title = lang === 'japanese' ? '일본어 단어장에 추가' : lang === 'english' ? '영어 단어장에 추가' : '단어 추가';
+
+  return (
+    <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+        {title}
+      </h2>
+      <AddWordForm
+        authError={authError}
+        setAuthError={setAuthError}
+        word={word}
+        setWord={setWord}
+        meaning={meaning}
+        setMeaning={setMeaning}
+        selectedLanguage={selectedLanguage}
+        setSelectedLanguage={setSelectedLanguage}
+        handleSaveWord={handleSaveWord}
+      />
+    </section>
+  );
+};
+
 function App() {
   const navigate = useNavigate();
   // Firebase related state variables
@@ -214,10 +412,10 @@ function App() {
   const [username, setUsername] = useState('');
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState('japanese'); // New state for language selection
 
   // User profile data (data to be loaded from Firestore)
   const [userProfile, setUserProfile] = useState(null);
-  const [vocabulary, setVocabulary] = useState([]); // 단어 목록 상태 추가
 
   // Firebase initialization and authentication state listener setup
   useEffect(() => {
@@ -301,24 +499,24 @@ function App() {
             });
 
             // Fetch vocabulary
-            const vocabularyCollectionRef = collection(dbInstance, `artifacts/${appId}/users/${user.uid}/vocabulary`);
-            onSnapshot(vocabularyCollectionRef, (snapshot) => {
-              const words = [];
-              snapshot.forEach(doc => {
-                words.push({ id: doc.id, ...doc.data() });
-              });
-              setVocabulary(words);
-              console.log("Vocabulary loaded:", words);
-            }, (error) => {
-              console.error("Error loading vocabulary:", error);
-            });
+            // const vocabularyCollectionRef = collection(dbInstance, `artifacts/${appId}/users/${user.uid}/vocabulary`);
+            // onSnapshot(vocabularyCollectionRef, (snapshot) => {
+            //   const words = [];
+            //   snapshot.forEach(doc => {
+            //     words.push({ id: doc.id, ...doc.data() });
+            //   });
+            //   setVocabulary(words);
+            //   console.log("Vocabulary loaded:", words);
+            // }, (error) => {
+            //   console.error("Error loading vocabulary:", error);
+            // });
 
           } else {
             console.log("No authenticated user. Setting current user to null.");
             setCurrentUser(null);
             setUserId(null);
             setUserProfile(null);
-            setVocabulary([]); // Clear vocabulary on logout
+            // setVocabulary([]); // Clear vocabulary on logout
             setLoadingAuth(false);
           }
         });
@@ -483,18 +681,19 @@ function App() {
       await setDoc(wordRef, {
         word: word,
         meaning: meaning,
+        language: selectedLanguage, // Add language field
         createdAt: new Date().toISOString(),
       }, { merge: true });
       console.log("Word saved successfully!");
       setWord('');
       setMeaning('');
       setAuthError(null);
-      navigate('/vocabulary'); // Navigate to vocabulary page after saving
+      navigate(`/vocabulary/${selectedLanguage}`); // Navigate to vocabulary page after saving
     } catch (error) {
       console.error("Error saving word:", error);
       setAuthError(`단어 저장 중 오류가 발생했습니다: ${error.message}`);
     }
-  }, [auth, db, currentUser, word, meaning, navigate, setAuthError]);
+  }, [auth, db, currentUser, word, meaning, selectedLanguage, navigate, setAuthError]);
 
 
   // Display loading state for authentication
@@ -552,8 +751,19 @@ function App() {
         {/* New navigation bar section */}
         <nav className="w-full bg-white rounded-xl shadow-lg p-4 mb-4 mt-2 flex justify-start items-center space-x-6 sm:space-x-8 pl-8">
           <Link to="/" className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</Link>
-          <Link to="/vocabulary" className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어장</Link>
-          <div onClick={handleAddWordClick} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
+          
+          {/* Dropdown for Vocabulary */}
+          <div className="relative group">
+            <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">
+              내 단어장
+            </div>
+            <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 opacity-0 group-hover:opacity-100 group-hover:visible transition-all duration-300 invisible">
+              <Link to="/vocabulary/japanese" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">일본어 단어장</Link>
+              <Link to="/vocabulary/english" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">영어 단어장</Link>
+            </div>
+          </div>
+
+          <div onClick={() => handleAddWordClick()} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
         </nav>
       </div> {/* End of w-full max-w-6xl wrapper */}
 
@@ -607,82 +817,27 @@ function App() {
               setUsername={setUsername}
             />
           } />
-          <Route path="/vocabulary" element={
-            <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1 flex flex-col">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
-                내 단어장
-              </h2>
-              {vocabulary.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {vocabulary.map((item) => (
-                    <div key={item.id} className="bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
-                      <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.word}</h3>
-                      <p className="text-gray-600">{item.meaning}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-gray-500 text-center py-12 flex-1 flex flex-col justify-center items-center">
-                  <p className="text-xl mb-4">여기에 저장된 단어 목록이 표시됩니다.</p>
-                  <p className="text-base text-gray-400">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
-                  <button
-                    onClick={handleAddWordClick}
-                    className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
-                  >
-                    단어 추가하기
-                  </button>
-                </div>
-              )}
-            </section>
+          <Route path="/vocabulary/:language" element={
+            <VocabularyList
+              auth={auth}
+              db={db}
+              currentUser={currentUser}
+              userId={userId}
+              appId={typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}
+            />
           } />
-          <Route path="/add-word" element={
-            <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
-                단어 추가
-              </h2>
-              <div className="text-gray-500 text-center py-12">
-                <p className="text-xl mb-4">새로운 단어를 추가할 수 있는 폼이 여기에 옵니다.</p>
-                <div className="flex flex-col space-y-4 max-w-md mx-auto">
-                  <div>
-                    <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
-                      단어
-                    </label>
-                    <input
-                      type="text"
-                      id="word"
-                      placeholder="새로운 단어를 입력하세요"
-                      value={word}
-                      onChange={(e) => {
-                        console.log("Word input changed:", e.target.value);
-                        setWord(e.target.value);
-                      }}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="meaning" className="block text-gray-700 text-sm font-bold mb-2 text-left">
-                      의미
-                    </label>
-                    <textarea
-                      id="meaning"
-                      className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      rows="4"
-                      placeholder="단어의 의미를 입력하세요..."
-                      value={meaning}
-                      onChange={(e) => {
-                        console.log("Meaning textarea changed:", e.target.value);
-                        setMeaning(e.target.value);
-                      }}
-                    ></textarea>
-                  </div>
-                  <button
-                      onClick={handleSaveWord}
-                      className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
-                    단어 저장
-                  </button>
-                </div>
-              </div>
-            </section>
+          <Route path="/add-word/:lang?" element={
+            <AddWordPage
+              authError={authError}
+              setAuthError={setAuthError}
+              word={word}
+              setWord={setWord}
+              meaning={meaning}
+              setMeaning={setMeaning}
+              selectedLanguage={selectedLanguage}
+              setSelectedLanguage={setSelectedLanguage}
+              handleSaveWord={handleSaveWord}
+            />
           } />
           <Route path="/profile" element={
             <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
