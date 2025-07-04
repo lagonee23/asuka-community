@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection } from 'firebase/firestore';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 
 // AuthFormContainer component: Renders the login form.
@@ -212,9 +212,12 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [word, setWord] = useState('');
+  const [meaning, setMeaning] = useState('');
 
   // User profile data (data to be loaded from Firestore)
   const [userProfile, setUserProfile] = useState(null);
+  const [vocabulary, setVocabulary] = useState([]); // 단어 목록 상태 추가
 
   // Firebase initialization and authentication state listener setup
   useEffect(() => {
@@ -296,11 +299,26 @@ function App() {
               setAuthError(`Error loading user profile: ${profileSnapshotError.message}`);
               setLoadingAuth(false);
             });
+
+            // Fetch vocabulary
+            const vocabularyCollectionRef = collection(dbInstance, `artifacts/${appId}/users/${user.uid}/vocabulary`);
+            onSnapshot(vocabularyCollectionRef, (snapshot) => {
+              const words = [];
+              snapshot.forEach(doc => {
+                words.push({ id: doc.id, ...doc.data() });
+              });
+              setVocabulary(words);
+              console.log("Vocabulary loaded:", words);
+            }, (error) => {
+              console.error("Error loading vocabulary:", error);
+            });
+
           } else {
             console.log("No authenticated user. Setting current user to null.");
             setCurrentUser(null);
             setUserId(null);
             setUserProfile(null);
+            setVocabulary([]); // Clear vocabulary on logout
             setLoadingAuth(false);
           }
         });
@@ -440,6 +458,44 @@ function App() {
     }
   }, [auth, navigate, setAuthError]);
 
+  // Save word handler function
+  const handleSaveWord = useCallback(async () => {
+    console.log("handleSaveWord called.");
+    console.log("auth:", auth, "db:", db, "currentUser:", currentUser);
+    console.log("word:", word, "meaning:", meaning);
+
+    if (!auth || !db || !currentUser) {
+      console.log("Auth, DB, or currentUser not initialized. Redirecting to login.");
+      setAuthError("로그인 후 단어를 저장할 수 있습니다.");
+      navigate('/login');
+      return;
+    }
+    if (!word.trim() || !meaning.trim()) {
+      console.log("Word or meaning is empty.");
+      setAuthError("단어와 의미를 모두 입력해주세요.");
+      return;
+    }
+
+    try {
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      console.log(`Attempting to save word to: artifacts/${appId}/users/${currentUser.uid}/vocabulary/${word}`);
+      const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, word); // Use word as document ID
+      await setDoc(wordRef, {
+        word: word,
+        meaning: meaning,
+        createdAt: new Date().toISOString(),
+      }, { merge: true });
+      console.log("Word saved successfully!");
+      setWord('');
+      setMeaning('');
+      setAuthError(null);
+      navigate('/vocabulary'); // Navigate to vocabulary page after saving
+    } catch (error) {
+      console.error("Error saving word:", error);
+      setAuthError(`단어 저장 중 오류가 발생했습니다: ${error.message}`);
+    }
+  }, [auth, db, currentUser, word, meaning, navigate, setAuthError]);
+
 
   // Display loading state for authentication
   if (loadingAuth) {
@@ -556,16 +612,27 @@ function App() {
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
                 내 단어장
               </h2>
-              <div className="text-gray-500 text-center py-12 flex-1 flex flex-col justify-center items-center">
-                <p className="text-xl mb-4">여기에 저장된 단어 목록이 표시됩니다.</p>
-                <p className="text-base text-gray-400">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
-                <button
-                  onClick={handleAddWordClick}
-                  className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
-                >
-                  단어 추가하기
-                </button>
-              </div>
+              {vocabulary.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {vocabulary.map((item) => (
+                    <div key={item.id} className="bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
+                      <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.word}</h3>
+                      <p className="text-gray-600">{item.meaning}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-12 flex-1 flex flex-col justify-center items-center">
+                  <p className="text-xl mb-4">여기에 저장된 단어 목록이 표시됩니다.</p>
+                  <p className="text-base text-gray-400">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
+                  <button
+                    onClick={handleAddWordClick}
+                    className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+                  >
+                    단어 추가하기
+                  </button>
+                </div>
+              )}
             </section>
           } />
           <Route path="/add-word" element={
@@ -599,6 +666,7 @@ function App() {
                     ></textarea>
                   </div>
                   <button
+                      onClick={handleSaveWord}
                       className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
                     단어 저장
                   </button>
