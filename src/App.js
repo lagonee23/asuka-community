@@ -663,6 +663,11 @@ function App() {
                       className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
                       rows="4"
                       placeholder="단어의 의미를 입력하세요..."
+                      value={meaning}
+                      onChange={(e) => {
+                        console.log("Meaning textarea changed:", e.target.value);
+                        setMeaning(e.target.value);
+                      }}
                     ></textarea>
                   </div>
                   <button
