@@ -1,7 +1,7 @@
-/* global __app_id, __firebase_config, __initial_auth_token */
+/* global __app_id, __firebase_config */
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 
@@ -255,27 +255,8 @@ function App() {
         setDb(dbInstance);
         console.log("Auth and Firestore instances set up.");
 
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Attempt initial login (custom token or anonymous)
-        try {
-          if (initialAuthToken) {
-            console.log("Attempting login with custom token...");
-            await signInWithCustomToken(authInstance, initialAuthToken);
-            console.log("Login with custom token successful.");
-          } else {
-            console.log("No custom token. Attempting anonymous login...");
-            await signInAnonymously(authInstance);
-            console.log("Anonymous login successful.");
-          }
-        } catch (initialSignInError) {
-          console.error("Initial login (token or anonymous) failed:", initialSignInError);
-          setAuthError(`Initial login failed: ${initialSignInError.message || initialSignInError.code}. Please ensure anonymous authentication is enabled in Firebase console.`);
-          setLoadingAuth(false);
-          return;
-        }
-
-        // Set up authentication state listener after initial login attempt
+        // Set up authentication state listener.
+        // This will automatically handle restoring user sessions.
         authUnsubscribe = onAuthStateChanged(authInstance, async (user) => {
           console.log("onAuthStateChanged callback executed. User:", user ? user.uid : "null (logged out)");
           
