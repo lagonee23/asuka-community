@@ -4,6 +4,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, query, where, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
+import WordTest from './components/WordTest'; // WordTest 컴포넌트 import
+import EnglishTest from './components/EnglishTest';
+import JapaneseTest from './components/JapaneseTest';
 
 // AuthFormContainer component: Renders the login form.
 // If the user clicks the registration link, it navigates to a dedicated registration page.
@@ -50,7 +53,7 @@ const AuthFormContainer = ({
         </div>
       ) : (
         <>
-          <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-purple-200 pb-2">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-blue-200 pb-2">
             로그인
           </h3>
           <form onSubmit={handleLogin} className="flex flex-col space-y-4">
@@ -126,7 +129,7 @@ const RegisterPage = ({
 
   return (
     <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8">
-      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-purple-200 pb-2">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-blue-200 pb-2">
         회원가입
       </h2>
       {authError && (
@@ -281,7 +284,7 @@ const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord
       ) : (
         <div className="text-gray-500 text-center py-12 flex-1 flex flex-col justify-center items-center">
           <p className="text-xl mb-4">아직 단어가 없습니다. 새 단어를 추가해보세요!</p>
-          <Link to={`/add-word/${language}`} className="mt-4 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+          <Link to={`/add-word/${language}`} className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
             단어 추가하기
           </Link>
         </div>
@@ -974,6 +977,7 @@ function App() {
           </div>
 
           <div onClick={() => handleAddWordClick()} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
+          <Link to="/word-test" className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 테스트</Link>
         </nav>
       </div> {/* End of w-full max-w-6xl wrapper */}
 
@@ -999,7 +1003,7 @@ function App() {
             </div>
           } />
           <Route path="/login" element={
-            <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+            <section className="w-full max-w-xl mx-auto p-6 sm:p-8 flex-1">
               <AuthFormContainer
                 authError={authError}
                 currentUser={currentUser}
@@ -1062,7 +1066,7 @@ function App() {
           } />
           <Route path="/profile" element={
             <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-blue-200 pb-2">
                 내 정보
               </h2>
               <div className="text-gray-500 text-center py-12">
@@ -1082,6 +1086,9 @@ function App() {
               </div>
             </section>
           } />
+          <Route path="/word-test" element={<WordTest />} />
+          <Route path="/word-test/english" element={<EnglishTest db={db} currentUser={currentUser} appId={typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'} />} />
+          <Route path="/word-test/japanese" element={<JapaneseTest db={db} currentUser={currentUser} appId={typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'} />} />
         </Routes>
       </main>
 
