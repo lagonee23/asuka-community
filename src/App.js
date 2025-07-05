@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, query, where } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, query, where, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 
 // AuthFormContainer component: Renders the login form.
@@ -198,7 +198,7 @@ const RegisterPage = ({
 };
 
 
-const VocabularyList = ({ auth, db, currentUser, userId, appId }) => {
+const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord }) => {
   const { language } = useParams();
   const [vocabulary, setVocabulary] = useState([]);
   const [loadingVocabulary, setLoadingVocabulary] = useState(true);
@@ -248,15 +248,33 @@ const VocabularyList = ({ auth, db, currentUser, userId, appId }) => {
 
   return (
     <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1 flex flex-col">
-      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
-        {language === 'japanese' ? '일본어 단어장' : '영어 단어장'}
-      </h2>
+      <div className="flex justify-between items-center mb-6 border-b-2 border-indigo-200 pb-2">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
+          {language === 'japanese' ? '일본어 단어장' : '영어 단어장'}
+        </h2>
+        <Link to={`/add-word/${language}`} className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+          추가
+        </Link>
+      </div>
       {vocabulary.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {vocabulary.map((item) => (
-            <div key={item.id} className="bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.word}</h3>
-              <p className="text-gray-600">{item.meaning}</p>
+            <div key={item.id} className="bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.word}</h3>
+                <p className="text-gray-600">{item.meaning}</p>
+              </div>
+              <div className="mt-4 flex justify-end space-x-2">
+                <Link to={`/edit-word/${language}/${item.id}`} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-1 px-3 rounded-lg transition duration-300">
+                  수정
+                </Link>
+                <button
+                  onClick={() => handleDeleteWord(language, item.id)}
+                  className="text-sm bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-lg transition duration-300"
+                >
+                  삭제
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -392,6 +410,107 @@ const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeani
         setSelectedLanguage={setSelectedLanguage}
         handleSaveWord={handleSaveWord}
       />
+    </section>
+  );
+};
+
+const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, authError }) => {
+  const { language, wordId } = useParams();
+  const navigate = useNavigate();
+
+  const [word, setWord] = useState('');
+  const [meaning, setMeaning] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!db || !currentUser) {
+      navigate('/login');
+      return;
+    }
+
+    const fetchWord = async () => {
+      try {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, wordId);
+        const docSnap = await getDoc(wordRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setWord(data.word);
+          setMeaning(data.meaning);
+        } else {
+          console.error("No such document!");
+          setAuthError("수정할 단어를 찾을 수 없습니다.");
+          navigate(`/vocabulary/${language}`);
+        }
+      } catch (error) {
+        console.error("Error fetching word:", error);
+        setAuthError(`단어 정보를 불러오는 중 오류가 발생했습니다: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWord();
+  }, [db, currentUser, wordId, language, navigate, setAuthError]);
+
+  const onUpdate = () => {
+    handleUpdateWord(wordId, word, meaning, language);
+  };
+
+  if (loading) {
+    return <p className="text-center text-gray-700">단어 정보를 불러오는 중...</p>;
+  }
+
+  const title = language === 'japanese' ? '일본어 단어 수정' : '영어 단어 수정';
+
+  return (
+    <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+        {title}
+      </h2>
+      <div className="text-gray-500 text-center py-12">
+        {authError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong className="font-bold">오류:</strong>
+            <span className="block sm:inline ml-2">{authError}</span>
+          </div>
+        )}
+        <div className="flex flex-col space-y-4 max-w-md mx-auto">
+          <div>
+            <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+              단어
+            </label>
+            <input
+              type="text"
+              id="word"
+              placeholder="단어를 입력하세요"
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label htmlFor="meaning" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+              의미
+            </label>
+            <textarea
+              id="meaning"
+              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              rows="4"
+              placeholder="단어의 의미를 입력하세요..."
+              value={meaning}
+              onChange={(e) => setMeaning(e.target.value)}
+            ></textarea>
+          </div>
+          <button
+            onClick={onUpdate}
+            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+          >
+            단어 수정
+          </button>
+        </div>
+      </div>
     </section>
   );
 };
@@ -695,6 +814,97 @@ function App() {
     }
   }, [auth, db, currentUser, word, meaning, selectedLanguage, navigate, setAuthError]);
 
+  const handleDeleteWord = useCallback(async (language, wordId) => {
+    if (!db || !currentUser) {
+      setAuthError("로그인 후 단어를 삭제할 수 있습니다.");
+      navigate('/login');
+      return;
+    }
+
+    if (!window.confirm("정말로 이 단어를 삭제하시겠습니까?")) {
+      return;
+    }
+
+    try {
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, wordId);
+      await deleteDoc(wordRef);
+      console.log("Word deleted successfully!");
+      // No need to navigate, onSnapshot will update the list
+    } catch (error) {
+      console.error("Error deleting word:", error);
+      setAuthError(`단어 삭제 중 오류가 발생했습니다: ${error.message}`);
+    }
+  }, [db, currentUser, navigate, setAuthError]);
+
+  const handleUpdateWord = useCallback(async (wordId, newWord, newMeaning, language) => {
+    console.log("handleUpdateWord called for wordId:", wordId);
+
+    if (!db || !currentUser) {
+      setAuthError("로그인 후 단어를 수정할 수 있습니다.");
+      navigate('/login');
+      return;
+    }
+    if (!newWord.trim() || !newMeaning.trim()) {
+      setAuthError("단어와 의미를 모두 입력해주세요.");
+      return;
+    }
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const oldWordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, wordId);
+
+    try {
+      const originalDocSnap = await getDoc(oldWordRef);
+      if (!originalDocSnap.exists()) {
+        setAuthError("수정하려는 단어를 찾을 수 없습니다.");
+        return;
+      }
+      const originalData = originalDocSnap.data();
+
+      // If the word itself hasn't changed, just update the meaning.
+      if (wordId === newWord) {
+        await updateDoc(oldWordRef, {
+          meaning: newMeaning,
+          updatedAt: new Date().toISOString(),
+        });
+        console.log("Word meaning updated successfully!");
+      } else {
+        // If the word has changed, we need to delete the old doc and create a new one in a batch.
+        const newWordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, newWord);
+        
+        // Check if the new word already exists to prevent overwriting
+        const newWordSnap = await getDoc(newWordRef);
+        if (newWordSnap.exists()) {
+            setAuthError("이미 존재하는 단어입니다. 다른 단어를 사용해주세요.");
+            return;
+        }
+
+        const batch = writeBatch(db);
+
+        // 1. Create the new document
+        batch.set(newWordRef, {
+          ...originalData, // copy over old data like language, createdAt
+          word: newWord,
+          meaning: newMeaning,
+          updatedAt: new Date().toISOString(),
+        });
+
+        // 2. Delete the old document
+        batch.delete(oldWordRef);
+
+        // 3. Commit the batch
+        await batch.commit();
+        console.log("Word updated successfully (delete and create).");
+      }
+
+      setAuthError(null);
+      navigate(`/vocabulary/${language}`);
+    } catch (error) {
+      console.error("Error updating word:", error);
+      setAuthError(`단어 수정 중 오류가 발생했습니다: ${error.message}`);
+    }
+  }, [db, currentUser, navigate, setAuthError]);
+
 
   // Display loading state for authentication
   if (loadingAuth) {
@@ -824,6 +1034,7 @@ function App() {
               currentUser={currentUser}
               userId={userId}
               appId={typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}
+              handleDeleteWord={handleDeleteWord}
             />
           } />
           <Route path="/add-word/:lang?" element={
@@ -837,6 +1048,16 @@ function App() {
               selectedLanguage={selectedLanguage}
               setSelectedLanguage={setSelectedLanguage}
               handleSaveWord={handleSaveWord}
+            />
+          } />
+          <Route path="/edit-word/:language/:wordId" element={
+            <EditWordPage
+              auth={auth}
+              db={db}
+              currentUser={currentUser}
+              handleUpdateWord={handleUpdateWord}
+              authError={authError}
+              setAuthError={setAuthError}
             />
           } />
           <Route path="/profile" element={
