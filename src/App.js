@@ -1,15 +1,51 @@
 /* global __app_id, __firebase_config */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, query, where, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
-import WordTest from './components/WordTest'; // WordTest 컴포넌트 import
+import WordTest from './components/WordTest';
 import EnglishTest from './components/EnglishTest';
 import JapaneseTest from './components/JapaneseTest';
 
-// AuthFormContainer component: Renders the login form.
-// If the user clicks the registration link, it navigates to a dedicated registration page.
+// --- Helper Function for Image Resizing and Encoding ---
+const resizeAndEncodeImage = (file, maxWidth = 500, maxHeight = 500, quality = 0.9) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height *= maxWidth / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width *= maxHeight / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
+
+// AuthFormContainer component
 const AuthFormContainer = ({
   authError,
   currentUser,
@@ -17,22 +53,20 @@ const AuthFormContainer = ({
   userId,
   handleLogout,
   handleLogin,
-  handleGoogleSignIn, // Added for Google Sign-In
+  handleGoogleSignIn,
   email,
   setEmail,
   password,
   setPassword,
 }) => {
-
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit w-full max-w-md mx-auto"> {/* Width adjustment */}
+    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 h-fit w-full max-w-md mx-auto">
       {authError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <strong className="font-bold">오류:</strong>
           <span className="block sm:inline ml-2">{authError}</span>
         </div>
       )}
-
       {currentUser ? (
         <div className="text-center">
           <h3 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-green-200 pb-2">
@@ -114,8 +148,7 @@ const AuthFormContainer = ({
   );
 };
 
-
-// RegisterPage component: Renders a dedicated registration page.
+// RegisterPage component
 const RegisterPage = ({
   authError,
   handleRegister,
@@ -126,7 +159,6 @@ const RegisterPage = ({
   username,
   setUsername,
 }) => {
-
   return (
     <section className="w-full max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8">
       <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-blue-200 pb-2">
@@ -200,7 +232,7 @@ const RegisterPage = ({
   );
 };
 
-
+// VocabularyList component
 const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord }) => {
   const { language } = useParams();
   const [vocabulary, setVocabulary] = useState([]);
@@ -227,7 +259,6 @@ const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord
       });
       setVocabulary(words);
       setLoadingVocabulary(false);
-      console.log(`Vocabulary loaded for ${language}:`, words);
     }, (error) => {
       console.error(`Error loading ${language} vocabulary:`, error);
       setVocabularyError(`단어장 불러오기 오류: ${error.message}`);
@@ -235,7 +266,7 @@ const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord
     });
 
     return () => unsubscribe();
-  }, [currentUser, db, language, appId]); // Depend on currentUser, db, language, appId
+  }, [currentUser, db, language, appId]);
 
   if (loadingVocabulary) {
     return <p className="text-center text-gray-700">단어장을 불러오는 중...</p>;
@@ -264,6 +295,7 @@ const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord
           {vocabulary.map((item) => (
             <div key={item.id} className="bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between">
               <div>
+                {item.imageUrl && <img src={item.imageUrl} alt={item.word} className="w-full h-32 object-cover rounded-md mb-4" />}
                 <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.word}</h3>
                 <p className="text-gray-600">{item.meaning}</p>
               </div>
@@ -293,6 +325,7 @@ const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord
   );
 };
 
+// AddWordForm component
 const AddWordForm = ({
   authError,
   setAuthError,
@@ -303,53 +336,91 @@ const AddWordForm = ({
   selectedLanguage,
   setSelectedLanguage,
   handleSaveWord,
+  imageBase64,
+  setImageBase64,
 }) => {
-  const langFromUrl = useParams().lang; // Get lang from URL for initial setting
+  const langFromUrl = useParams().lang;
+  const fileInputRef = useRef();
 
   useEffect(() => {
     if (langFromUrl) {
       setSelectedLanguage(langFromUrl);
     }
-  }, [langFromUrl, setSelectedLanguage]);
+    // Clear form on mount or language change
+    setWord('');
+    setMeaning('');
+    setImageBase64('');
+  }, [langFromUrl, setSelectedLanguage, setWord, setMeaning, setImageBase64]);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const encodedString = await resizeAndEncodeImage(file);
+        setImageBase64(encodedString);
+      } catch (error) {
+        setAuthError("이미지 처리 중 오류가 발생했습니다.");
+        console.error(error);
+      }
+    }
+  };
+
+  const removeImage = () => {
+    setImageBase64('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = null;
+    }
+  };
 
   return (
-    <div className="text-gray-500 text-center py-12">
-      <p className="text-xl mb-4">새로운 단어를 추가할 수 있는 폼이 여기에 옵니다.</p>
+    <div className="max-w-md mx-auto">
       {authError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <strong className="font-bold">오류:</strong>
           <span className="block sm:inline ml-2">{authError}</span>
         </div>
       )}
-      <div className="flex flex-col space-y-4 max-w-md mx-auto">
-        {/* Language Selection - Conditionally rendered */}
-        {!langFromUrl && ( // Use langFromUrl to conditionally render
-          <div className="flex items-center space-x-4 mb-4">
-            <span className="block text-gray-700 text-sm font-bold">언어 선택:</span>
-            <label className="inline-flex items-center">
-              <input
-                type="radio"
-                className="form-radio text-indigo-600"
-                name="language"
-                value="japanese"
-                checked={selectedLanguage === 'japanese'}
-                onChange={() => setSelectedLanguage('japanese')}
-              />
-              <span className="ml-2 text-gray-700">일본어</span>
-            </label>
-            <label className="inline-flex items-center">
-              <input
-                type="radio"
-                className="form-radio text-indigo-600"
-                name="language"
-                value="english"
-                checked={selectedLanguage === 'english'}
-                onChange={() => setSelectedLanguage('english')}
-              />
-              <span className="ml-2 text-gray-700">영어</span>
-            </label>
+      <div className="flex flex-col space-y-4">
+        <div>
+          <label className="block text-gray-700 text-sm font-bold mb-2 text-left">
+            이미지 (선택 사항)
+          </label>
+          <div
+            className="w-full h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-all"
+            onClick={() => fileInputRef.current.click()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              accept="image/*"
+            />
+            {imageBase64 ? (
+              <div className="relative w-full h-full">
+                <img src={imageBase64} alt="미리보기" className="w-full h-full object-cover rounded-md" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeImage();
+                  }}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-sm"
+                >
+                  X
+                </button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="mt-2 text-sm text-gray-600">클릭하여 이미지 업로드</p>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
         <div>
           <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
             단어
@@ -359,10 +430,7 @@ const AddWordForm = ({
             id="word"
             placeholder="새로운 단어를 입력하세요"
             value={word}
-            onChange={(e) => {
-              console.log("Word input changed:", e.target.value);
-              setWord(e.target.value);
-            }}
+            onChange={(e) => setWord(e.target.value)}
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
           />
         </div>
@@ -376,15 +444,13 @@ const AddWordForm = ({
             rows="4"
             placeholder="단어의 의미를 입력하세요..."
             value={meaning}
-            onChange={(e) => {
-              console.log("Meaning textarea changed:", e.target.value);
-              setMeaning(e.target.value);
-            }}
+            onChange={(e) => setMeaning(e.target.value)}
           ></textarea>
         </div>
         <button
           onClick={handleSaveWord}
-          className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+          className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out"
+        >
           단어 저장
         </button>
       </div>
@@ -392,9 +458,9 @@ const AddWordForm = ({
   );
 };
 
-const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeaning, selectedLanguage, setSelectedLanguage, handleSaveWord }) => {
+// AddWordPage component
+const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeaning, selectedLanguage, setSelectedLanguage, handleSaveWord, imageBase64, setImageBase64 }) => {
   const { lang } = useParams();
-
   const title = lang === 'japanese' ? '일본어 단어장에 추가' : lang === 'english' ? '영어 단어장에 추가' : '단어 추가';
 
   return (
@@ -412,17 +478,22 @@ const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeani
         selectedLanguage={selectedLanguage}
         setSelectedLanguage={setSelectedLanguage}
         handleSaveWord={handleSaveWord}
+        imageBase64={imageBase64}
+        setImageBase64={setImageBase64}
       />
     </section>
   );
 };
 
+// EditWordPage component
 const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, authError }) => {
   const { language, wordId } = useParams();
   const navigate = useNavigate();
+  const fileInputRef = useRef();
 
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
+  const [imageBase64, setImageBase64] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -441,13 +512,12 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
           const data = docSnap.data();
           setWord(data.word);
           setMeaning(data.meaning);
+          setImageBase64(data.imageUrl || '');
         } else {
-          console.error("No such document!");
           setAuthError("수정할 단어를 찾을 수 없습니다.");
           navigate(`/vocabulary/${language}`);
         }
       } catch (error) {
-        console.error("Error fetching word:", error);
         setAuthError(`단어 정보를 불러오는 중 오류가 발생했습니다: ${error.message}`);
       } finally {
         setLoading(false);
@@ -457,8 +527,28 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
     fetchWord();
   }, [db, currentUser, wordId, language, navigate, setAuthError]);
 
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const encodedString = await resizeAndEncodeImage(file);
+        setImageBase64(encodedString);
+      } catch (error) {
+        setAuthError("이미지 처리 중 오류가 발생했습니다.");
+        console.error(error);
+      }
+    }
+  };
+
+  const removeImage = () => {
+    setImageBase64('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = null;
+    }
+  };
+
   const onUpdate = () => {
-    handleUpdateWord(wordId, word, meaning, language);
+    handleUpdateWord(wordId, word, meaning, language, imageBase64);
   };
 
   if (loading) {
@@ -472,14 +562,53 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
       <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
         {title}
       </h2>
-      <div className="text-gray-500 text-center py-12">
+      <div className="max-w-md mx-auto">
         {authError && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
             <strong className="font-bold">오류:</strong>
             <span className="block sm:inline ml-2">{authError}</span>
           </div>
         )}
-        <div className="flex flex-col space-y-4 max-w-md mx-auto">
+        <div className="flex flex-col space-y-4">
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2 text-left">
+              이미지
+            </label>
+            <div
+              className="w-full h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-all"
+              onClick={() => fileInputRef.current.click()}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept="image/*"
+              />
+              {imageBase64 ? (
+                <div className="relative w-full h-full">
+                  <img src={imageBase64} alt="미리보기" className="w-full h-full object-cover rounded-md" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeImage();
+                    }}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-sm"
+                  >
+                    X
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <p className="mt-2 text-sm text-gray-600">클릭하여 이미지 업로드</p>
+                </div>
+              )}
+            </div>
+          </div>
           <div>
             <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
               단어
@@ -520,37 +649,30 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
 
 function App() {
   const navigate = useNavigate();
-  // Firebase related state variables
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null); // Current logged-in user object
-  const [userId, setUserId] = useState(null); // Current user ID
-  const [loadingAuth, setLoadingAuth] = useState(true); // Initial authentication loading state
-  const [authError, setAuthError] = useState(null); // Authentication related error message
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
-  // Login/Registration form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('japanese'); // New state for language selection
+  const [imageBase64, setImageBase64] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState('japanese');
 
-  // User profile data (data to be loaded from Firestore)
   const [userProfile, setUserProfile] = useState(null);
 
-  // Firebase initialization and authentication state listener setup
   useEffect(() => {
     let authUnsubscribe;
-    let currentProfileUnsubscribe = null; // Stores the unsubscribe function for the currently active profile listener
+    let currentProfileUnsubscribe = null;
 
-    // Use an async IIFE to use await inside useEffect
     (async () => {
       try {
-        console.log("Starting Firebase initialization process.");
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        // In the Canvas environment, __firebase_config is provided globally.
         const firebaseConfig = typeof __firebase_config !== 'undefined'
           ? JSON.parse(__firebase_config)
           : {
@@ -562,115 +684,62 @@ function App() {
               appId: process.env.REACT_APP_FIREBASE_APP_ID,
             };
 
-        // Basic validation for Firebase configuration
         if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-            throw new Error("Firebase configuration is missing or incomplete. Please provide a valid API Key and Project ID.");
+            throw new Error("Firebase configuration is missing or incomplete.");
         }
 
-        console.log("Firebase configuration loaded successfully. Project ID:", firebaseConfig.projectId);
-
-        // Initialize Firebase app
         const app = initializeApp(firebaseConfig);
-        console.log("Firebase app initialized.");
         const authInstance = getAuth(app);
         setAuth(authInstance);
         const dbInstance = getFirestore(app);
         setDb(dbInstance);
-        console.log("Auth and Firestore instances set up.");
 
-        // Set up authentication state listener.
-        // This will automatically handle restoring user sessions.
         authUnsubscribe = onAuthStateChanged(authInstance, async (user) => {
-          console.log("onAuthStateChanged callback executed. User:", user ? user.uid : "null (logged out)");
-          
           if (currentProfileUnsubscribe) {
             currentProfileUnsubscribe();
             currentProfileUnsubscribe = null;
-            console.log("Previous user profile listener unsubscribed.");
           }
 
           if (user) {
             setCurrentUser(user);
             setUserId(user.uid);
-            console.log(`User ${user.uid} logged in. Attempting to load profile...`);
-            
-            console.log(`Firestore profile path: artifacts/${appId}/users/${user.uid}/profile/public`);
-
             const userDocRef = doc(dbInstance, `artifacts/${appId}/users/${user.uid}/profile`, 'public');
             currentProfileUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
               if (docSnap.exists()) {
-                console.log("User profile data loaded:", docSnap.data());
                 setUserProfile(docSnap.data());
               } else {
-                console.log("User profile not found. Attempting to create default profile...");
                 setDoc(userDocRef, { email: user.email, createdAt: new Date().toISOString() }, { merge: true })
-                  .then(() => {
-                    console.log("Default profile created successfully.");
-                    setUserProfile({ email: user.email, createdAt: new Date().toISOString() });
-                  })
-                  .catch((profileCreateError) => {
-                    console.error("Error creating default user profile:", profileCreateError);
-                    setAuthError(`Profile creation error: ${profileCreateError.message}`);
-                  });
+                  .then(() => setUserProfile({ email: user.email, createdAt: new Date().toISOString() }))
+                  .catch((profileCreateError) => setAuthError(`Profile creation error: ${profileCreateError.message}`));
               }
               setLoadingAuth(false);
             }, (profileSnapshotError) => {
-              console.error("Error listening to user profile (onSnapshot callback error):", profileSnapshotError);
               setAuthError(`Error loading user profile: ${profileSnapshotError.message}`);
               setLoadingAuth(false);
             });
-
-            // Fetch vocabulary
-            // const vocabularyCollectionRef = collection(dbInstance, `artifacts/${appId}/users/${user.uid}/vocabulary`);
-            // onSnapshot(vocabularyCollectionRef, (snapshot) => {
-            //   const words = [];
-            //   snapshot.forEach(doc => {
-            //     words.push({ id: doc.id, ...doc.data() });
-            //   });
-            //   setVocabulary(words);
-            //   console.log("Vocabulary loaded:", words);
-            // }, (error) => {
-            //   console.error("Error loading vocabulary:", error);
-            // });
-
           } else {
-            console.log("No authenticated user. Setting current user to null.");
             setCurrentUser(null);
             setUserId(null);
             setUserProfile(null);
-            // setVocabulary([]); // Clear vocabulary on logout
             setLoadingAuth(false);
           }
         });
-
       } catch (e) {
-        console.error("Fatal Firebase initialization error in useEffect:", e);
         setAuthError(`Fatal Firebase initialization error: ${e.message}`);
         setLoadingAuth(false);
       }
     })();
 
     return () => {
-      console.log("useEffect cleanup function started.");
-      if (authUnsubscribe) {
-        authUnsubscribe();
-        console.log("Auth state listener unsubscribed.");
-      }
-      if (currentProfileUnsubscribe) {
-        currentProfileUnsubscribe();
-        console.log("Firestore profile listener unsubscribed.");
-      }
+      if (authUnsubscribe) authUnsubscribe();
+      if (currentProfileUnsubscribe) currentProfileUnsubscribe();
     };
   }, []);
 
-  // Registration handler function (wrapped with useCallback)
   const handleRegister = useCallback(async (e) => {
     e.preventDefault();
     setAuthError(null);
-    if (!auth || !db) {
-      setAuthError("Firebase is not initialized.");
-      return;
-    }
+    if (!auth || !db) return;
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -683,53 +752,34 @@ function App() {
       setEmail('');
       setPassword('');
       setUsername('');
-      navigate('/'); // Navigate to home page after successful registration (auto-login)
+      navigate('/');
     } catch (error) {
-      console.error("Error during registration:", error);
       let errorMessage = "회원가입 중 오류가 발생했습니다.";
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "이미 사용 중인 이메일 주소입니다.";
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = "비밀번호는 최소 6자 이상이어야 합니다.";
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "유효하지 않은 이메일 주소입니다.";
-      }
+      if (error.code === 'auth/email-already-in-use') errorMessage = "이미 사용 중인 이메일 주소입니다.";
+      else if (error.code === 'auth/weak-password') errorMessage = "비밀번호는 최소 6자 이상이어야 합니다.";
+      else if (error.code === 'auth/invalid-email') errorMessage = "유효하지 않은 이메일 주소입니다.";
       setAuthError(errorMessage);
     }
-  }, [auth, db, email, password, username, navigate, setAuthError]);
+  }, [auth, db, email, password, username, navigate]);
 
-  // Login handler function (wrapped with useCallback)
   const handleLogin = useCallback(async (e) => {
     e.preventDefault();
     setAuthError(null);
-    if (!auth) {
-      setAuthError("Firebase is not initialized.");
-      return;
-    }
+    if (!auth) return;
     try {
       await signInWithEmailAndPassword(auth, email, password);
       setEmail('');
       setPassword('');
-      navigate('/'); // Navigate to home page after successful login
+      navigate('/');
     } catch (error) {
-      console.error("Error during login:", error);
-      let errorMessage = "로그인 중 오류가 발생했습니다. 이메일 또는 비밀번호를 확인해주세요.";
-      if (error.code === 'auth/invalid-credential') {
-        errorMessage = "유효하지 않은 이메일 또는 비밀번호입니다.";
-      } else if (error.code === 'auth/user-not-found') {
-        errorMessage = "해당 이메일로 등록된 사용자가 없습니다.";
-      } else if (error.code === 'auth/wrong-password') {
-        errorMessage = "비밀번호가 올바르지 않습니다.";
-      }
+      let errorMessage = "로그인 중 오류가 발생했습니다.";
+      if (error.code === 'auth/invalid-credential') errorMessage = "유효하지 않은 이메일 또는 비밀번호입니다.";
       setAuthError(errorMessage);
     }
-  }, [auth, email, password, navigate, setAuthError]);
+  }, [auth, email, password, navigate]);
 
   const handleGoogleSignIn = useCallback(async () => {
-    if (!auth || !db) {
-      setAuthError("Firebase is not initialized.");
-      return;
-    }
+    if (!auth || !db) return;
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -737,115 +787,86 @@ function App() {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       const userDocRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile`, 'public');
       const docSnap = await getDoc(userDocRef);
-
       if (!docSnap.exists()) {
-        // Create profile if it doesn't exist
         await setDoc(userDocRef, {
           email: user.email,
           username: user.displayName || 'Google User',
           createdAt: new Date().toISOString(),
         });
       }
-
       navigate('/');
     } catch (error) {
-      console.error("Error during Google sign-in:", error);
       setAuthError(`Google 로그인 중 오류가 발생했습니다: ${error.message}`);
     }
-  }, [auth, db, navigate, setAuthError]);
+  }, [auth, db, navigate]);
 
   const handleAddWordClick = useCallback(() => {
-    if (currentUser) {
-      navigate('/add-word');
-    } else {
-      navigate('/login');
-    }
+    navigate(currentUser ? '/add-word' : '/login');
   }, [currentUser, navigate]);
 
-  // Logout handler function (wrapped with useCallback)
   const handleLogout = useCallback(async () => {
-    if (!auth) {
-      setAuthError("Firebase is not initialized.");
-      return;
-    }
+    if (!auth) return;
     try {
       await signOut(auth);
       setAuthError(null);
-      navigate('/'); // Navigate to home page after logout
+      navigate('/');
     } catch (error) {
-      console.error("Error during logout:", error);
       setAuthError("로그아웃 중 오류가 발생했습니다: " + error.message);
     }
-  }, [auth, navigate, setAuthError]);
+  }, [auth, navigate]);
 
-  // Save word handler function
   const handleSaveWord = useCallback(async () => {
-    console.log("handleSaveWord called.");
-    console.log("auth:", auth, "db:", db, "currentUser:", currentUser);
-    console.log("word:", word, "meaning:", meaning);
-
     if (!auth || !db || !currentUser) {
-      console.log("Auth, DB, or currentUser not initialized. Redirecting to login.");
       setAuthError("로그인 후 단어를 저장할 수 있습니다.");
       navigate('/login');
       return;
     }
     if (!word.trim() || !meaning.trim()) {
-      console.log("Word or meaning is empty.");
       setAuthError("단어와 의미를 모두 입력해주세요.");
       return;
     }
 
     try {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-      console.log(`Attempting to save word to: artifacts/${appId}/users/${currentUser.uid}/vocabulary/${word}`);
-      const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, word); // Use word as document ID
+      const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, word);
+      
       await setDoc(wordRef, {
         word: word,
         meaning: meaning,
-        language: selectedLanguage, // Add language field
+        language: selectedLanguage,
+        imageUrl: imageBase64,
         createdAt: new Date().toISOString(),
       }, { merge: true });
-      console.log("Word saved successfully!");
+
       setWord('');
       setMeaning('');
+      setImageBase64('');
       setAuthError(null);
-      navigate(`/vocabulary/${selectedLanguage}`); // Navigate to vocabulary page after saving
+      navigate(`/vocabulary/${selectedLanguage}`);
     } catch (error) {
-      console.error("Error saving word:", error);
       setAuthError(`단어 저장 중 오류가 발생했습니다: ${error.message}`);
     }
-  }, [auth, db, currentUser, word, meaning, selectedLanguage, navigate, setAuthError]);
+  }, [auth, db, currentUser, word, meaning, imageBase64, selectedLanguage, navigate, setAuthError, setWord, setMeaning, setImageBase64]);
 
   const handleDeleteWord = useCallback(async (language, wordId) => {
     if (!db || !currentUser) {
       setAuthError("로그인 후 단어를 삭제할 수 있습니다.");
-      navigate('/login');
       return;
     }
-
-    if (!window.confirm("정말로 이 단어를 삭제하시겠습니까?")) {
-      return;
-    }
+    if (!window.confirm("정말로 이 단어를 삭제하시겠습니까?")) return;
 
     try {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, wordId);
       await deleteDoc(wordRef);
-      console.log("Word deleted successfully!");
-      // No need to navigate, onSnapshot will update the list
     } catch (error) {
-      console.error("Error deleting word:", error);
       setAuthError(`단어 삭제 중 오류가 발생했습니다: ${error.message}`);
     }
-  }, [db, currentUser, navigate, setAuthError]);
+  }, [db, currentUser, setAuthError]);
 
-  const handleUpdateWord = useCallback(async (wordId, newWord, newMeaning, language) => {
-    console.log("handleUpdateWord called for wordId:", wordId);
-
+  const handleUpdateWord = useCallback(async (wordId, newWord, newMeaning, language, newImageBase64) => {
     if (!db || !currentUser) {
-      setAuthError("로그인 후 단어를 수정할 수 있습니다.");
-      navigate('/login');
+      setAuthError("로그인 후 수정할 수 있습니다.");
       return;
     }
     if (!newWord.trim() || !newMeaning.trim()) {
@@ -864,52 +885,38 @@ function App() {
       }
       const originalData = originalDocSnap.data();
 
-      // If the word itself hasn't changed, just update the meaning.
+      const updateData = {
+        meaning: newMeaning,
+        imageUrl: newImageBase64,
+        updatedAt: new Date().toISOString(),
+      };
+
       if (wordId === newWord) {
-        await updateDoc(oldWordRef, {
-          meaning: newMeaning,
-          updatedAt: new Date().toISOString(),
-        });
-        console.log("Word meaning updated successfully!");
+        await updateDoc(oldWordRef, updateData);
       } else {
-        // If the word has changed, we need to delete the old doc and create a new one in a batch.
         const newWordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabulary`, newWord);
-        
-        // Check if the new word already exists to prevent overwriting
         const newWordSnap = await getDoc(newWordRef);
         if (newWordSnap.exists()) {
-            setAuthError("이미 존재하는 단어입니다. 다른 단어를 사용해주세요.");
-            return;
+          setAuthError("이미 존재하는 단어입니다. 다른 단어를 사용해주세요.");
+          return;
         }
-
         const batch = writeBatch(db);
-
-        // 1. Create the new document
         batch.set(newWordRef, {
-          ...originalData, // copy over old data like language, createdAt
+          ...originalData,
           word: newWord,
-          meaning: newMeaning,
-          updatedAt: new Date().toISOString(),
+          ...updateData,
         });
-
-        // 2. Delete the old document
         batch.delete(oldWordRef);
-
-        // 3. Commit the batch
         await batch.commit();
-        console.log("Word updated successfully (delete and create).");
       }
 
       setAuthError(null);
       navigate(`/vocabulary/${language}`);
     } catch (error) {
-      console.error("Error updating word:", error);
       setAuthError(`단어 수정 중 오류가 발생했습니다: ${error.message}`);
     }
   }, [db, currentUser, navigate, setAuthError]);
 
-
-  // Display loading state for authentication
   if (loadingAuth) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center font-inter">
@@ -919,24 +926,17 @@ function App() {
   }
 
   return (
-    // Overall page container. Fills the entire screen and centers content.
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter"> {/* Restored original top padding */}
-      <div className="w-full max-w-6xl"> {/* Main content wrapper */}
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-inter">
+      <div className="w-full max-w-6xl">
         <header className="flex justify-between items-baseline mb-0">
-          {/* Left side: App Name and Slogan */}
-          {/* Changed to flex and items-baseline to put slogan on the same line as ASUKA */}
           <div className="flex items-end">
             <Link to="/" className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-700 mb-0 animate-pulse cursor-pointer">
               ASUKA
             </Link>
-            {/* Slogan positioned to the right of ASUKA with margin */}
-            <p className="text-lg sm:text-xl text-gray-600 ml-4"> 
+            <p className="text-lg sm:text-xl text-gray-600 ml-4">
               나만의 일본어 단어장을 만들어 보세요!
             </p>
           </div>
-
-          {/* Right side: Login/Logout/Profile links */}
-          {/* Adjusted top padding to pt-12 as requested */}
           <div className="flex flex-col items-end justify-end text-right space-y-1 self-end">
             {currentUser ? (
               <>
@@ -961,11 +961,8 @@ function App() {
           </div>
         </header>
 
-        {/* New navigation bar section */}
         <nav className="w-full bg-white rounded-xl shadow-lg p-4 mb-4 mt-2 flex justify-start items-center space-x-6 sm:space-x-8 pl-8">
           <Link to="/" className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">홈</Link>
-          
-          {/* Dropdown for Vocabulary */}
           <div className="relative group">
             <div className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">
               내 단어장
@@ -975,14 +972,12 @@ function App() {
               <Link to="/vocabulary/english" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">영어 단어장</Link>
             </div>
           </div>
-
-          <div onClick={() => handleAddWordClick()} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
+          <div onClick={handleAddWordClick} className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 추가</div>
           <Link to="/word-test" className="cursor-pointer text-lg font-medium text-gray-700 hover:text-indigo-600 transition duration-300">단어 테스트</Link>
         </nav>
-      </div> {/* End of w-full max-w-6xl wrapper */}
+      </div>
 
-      {/* Main content area: Dynamically rendered based on currentPage */}
-      <main className="w-full flex-1 flex flex-col"> {/* Occupies remaining space and becomes a flex container */}
+      <main className="w-full flex-1 flex flex-col">
         <Routes>
           <Route path="/" element={
             <div className="w-full max-w-6xl mx-auto flex flex-col flex-1">
@@ -1052,6 +1047,8 @@ function App() {
               selectedLanguage={selectedLanguage}
               setSelectedLanguage={setSelectedLanguage}
               handleSaveWord={handleSaveWord}
+              imageBase64={imageBase64}
+              setImageBase64={setImageBase64}
             />
           } />
           <Route path="/edit-word/:language/:wordId" element={
@@ -1092,7 +1089,6 @@ function App() {
         </Routes>
       </main>
 
-      {/* Footer section */}
       <footer className="mt-8 text-gray-500 text-sm">
         <p>&copy; 2024 ASUKA. All rights reserved.</p>
       </footer>
