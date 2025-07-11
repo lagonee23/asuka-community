@@ -297,6 +297,7 @@ const VocabularyList = ({ auth, db, currentUser, userId, appId, handleDeleteWord
               <div>
                 {item.imageUrl && <img src={item.imageUrl} alt={item.word} className="w-full h-32 object-cover rounded-md mb-4" />}
                 <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.word}</h3>
+                {item.partOfSpeech && <p className="text-sm text-gray-500 mb-2">[{item.partOfSpeech}]</p>}
                 <p className="text-gray-600">{item.meaning}</p>
               </div>
               <div className="mt-4 flex justify-end space-x-2">
@@ -333,6 +334,8 @@ const AddWordForm = ({
   setWord,
   meaning,
   setMeaning,
+  partOfSpeech,
+  setPartOfSpeech,
   selectedLanguage,
   setSelectedLanguage,
   handleSaveWord,
@@ -349,8 +352,9 @@ const AddWordForm = ({
     // Clear form on mount or language change
     setWord('');
     setMeaning('');
+    setPartOfSpeech('');
     setImageBase64('');
-  }, [langFromUrl, setSelectedLanguage, setWord, setMeaning, setImageBase64]);
+  }, [langFromUrl, setSelectedLanguage, setWord, setMeaning, setPartOfSpeech, setImageBase64]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -435,6 +439,19 @@ const AddWordForm = ({
           />
         </div>
         <div>
+          <label htmlFor="partOfSpeech" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+            품사
+          </label>
+          <input
+            type="text"
+            id="partOfSpeech"
+            placeholder="품사를 입력하세요 (예: 명사, 동사)"
+            value={partOfSpeech}
+            onChange={(e) => setPartOfSpeech(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+          />
+        </div>
+        <div>
           <label htmlFor="meaning" className="block text-gray-700 text-sm font-bold mb-2 text-left">
             의미
           </label>
@@ -459,7 +476,7 @@ const AddWordForm = ({
 };
 
 // AddWordPage component
-const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeaning, selectedLanguage, setSelectedLanguage, handleSaveWord, imageBase64, setImageBase64 }) => {
+const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeaning, partOfSpeech, setPartOfSpeech, selectedLanguage, setSelectedLanguage, handleSaveWord, imageBase64, setImageBase64 }) => {
   const { lang } = useParams();
   const title = lang === 'japanese' ? '일본어 단어장에 추가' : lang === 'english' ? '영어 단어장에 추가' : '단어 추가';
 
@@ -475,6 +492,8 @@ const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeani
         setWord={setWord}
         meaning={meaning}
         setMeaning={setMeaning}
+        partOfSpeech={partOfSpeech}
+        setPartOfSpeech={setPartOfSpeech}
         selectedLanguage={selectedLanguage}
         setSelectedLanguage={setSelectedLanguage}
         handleSaveWord={handleSaveWord}
@@ -493,6 +512,7 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
 
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
+  const [partOfSpeech, setPartOfSpeech] = useState('');
   const [imageBase64, setImageBase64] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -512,6 +532,7 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
           const data = docSnap.data();
           setWord(data.word);
           setMeaning(data.meaning);
+          setPartOfSpeech(data.partOfSpeech || '');
           setImageBase64(data.imageUrl || '');
         } else {
           setAuthError("수정할 단어를 찾을 수 없습니다.");
@@ -548,7 +569,7 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
   };
 
   const onUpdate = () => {
-    handleUpdateWord(wordId, word, meaning, language, imageBase64);
+    handleUpdateWord(wordId, word, meaning, partOfSpeech, language, imageBase64);
   };
 
   if (loading) {
@@ -623,6 +644,19 @@ const EditWordPage = ({ auth, db, currentUser, handleUpdateWord, setAuthError, a
             />
           </div>
           <div>
+            <label htmlFor="partOfSpeech" className="block text-gray-700 text-sm font-bold mb-2 text-left">
+              품사
+            </label>
+            <input
+              type="text"
+              id="partOfSpeech"
+              placeholder="품사를 입력하세요"
+              value={partOfSpeech}
+              onChange={(e) => setPartOfSpeech(e.target.value)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+            />
+          </div>
+          <div>
             <label htmlFor="meaning" className="block text-gray-700 text-sm font-bold mb-2 text-left">
               의미
             </label>
@@ -661,6 +695,7 @@ function App() {
   const [username, setUsername] = useState('');
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
+  const [partOfSpeech, setPartOfSpeech] = useState('');
   const [imageBase64, setImageBase64] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('japanese');
 
@@ -833,6 +868,7 @@ function App() {
       await setDoc(wordRef, {
         word: word,
         meaning: meaning,
+        partOfSpeech: partOfSpeech,
         language: selectedLanguage,
         imageUrl: imageBase64,
         createdAt: new Date().toISOString(),
@@ -840,13 +876,14 @@ function App() {
 
       setWord('');
       setMeaning('');
+      setPartOfSpeech('');
       setImageBase64('');
       setAuthError(null);
       navigate(`/vocabulary/${selectedLanguage}`);
     } catch (error) {
       setAuthError(`단어 저장 중 오류가 발생했습니다: ${error.message}`);
     }
-  }, [auth, db, currentUser, word, meaning, imageBase64, selectedLanguage, navigate, setAuthError, setWord, setMeaning, setImageBase64]);
+  }, [auth, db, currentUser, word, meaning, partOfSpeech, imageBase64, selectedLanguage, navigate, setAuthError, setWord, setMeaning, setPartOfSpeech, setImageBase64]);
 
   const handleDeleteWord = useCallback(async (language, wordId) => {
     if (!db || !currentUser) {
@@ -864,7 +901,7 @@ function App() {
     }
   }, [db, currentUser, setAuthError]);
 
-  const handleUpdateWord = useCallback(async (wordId, newWord, newMeaning, language, newImageBase64) => {
+  const handleUpdateWord = useCallback(async (wordId, newWord, newMeaning, newPartOfSpeech, language, newImageBase64) => {
     if (!db || !currentUser) {
       setAuthError("로그인 후 수정할 수 있습니다.");
       return;
@@ -887,6 +924,7 @@ function App() {
 
       const updateData = {
         meaning: newMeaning,
+        partOfSpeech: newPartOfSpeech,
         imageUrl: newImageBase64,
         updatedAt: new Date().toISOString(),
       };
@@ -1044,6 +1082,8 @@ function App() {
               setWord={setWord}
               meaning={meaning}
               setMeaning={setMeaning}
+              partOfSpeech={partOfSpeech}
+              setPartOfSpeech={setPartOfSpeech}
               selectedLanguage={selectedLanguage}
               setSelectedLanguage={setSelectedLanguage}
               handleSaveWord={handleSaveWord}
