@@ -7,6 +7,8 @@ import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import WordTest from './components/WordTest';
 import EnglishTest from './components/EnglishTest';
 import JapaneseTest from './components/JapaneseTest';
+import LoggedInHome from './components/LoggedInHome';
+import LoggedOutHome from './components/LoggedOutHome';
 
 // --- Helper Function for Image Resizing and Encoding ---
 const resizeAndEncodeImage = (file, maxWidth = 500, maxHeight = 500, quality = 0.9) => {
@@ -1323,7 +1325,7 @@ function App() {
               ASUKA
             </Link>
             <p className="text-lg sm:text-xl text-gray-600 ml-4">
-              나만의 일본어 단어장을 만들어 보세요!
+              나만의 단어장을 만들어 보세요!
             </p>
           </div>
           <div className="flex flex-col items-end justify-end text-right space-y-1 self-end">
@@ -1361,22 +1363,14 @@ function App() {
       <main className="w-full flex-1 flex flex-col">
         <Routes>
           <Route path="/" element={
-            <div className="w-full max-w-6xl mx-auto flex flex-col flex-1">
-              <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 w-full flex-1 flex flex-col items-center justify-center">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2 text-center">
-                  나만의 단어장을 만들어 보세요!
-                </h2>
-                <p className="text-lg text-gray-700 mb-4 text-center">
-                  ASUKA 단어장 앱에서 새로운 단어를 추가하고, 학습하고, 관리해보세요.
-                </p>
-                <button
-                  onClick={handleAddWordClick}
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1"
-                >
-                  새 단어 추가하기
-                </button>
-              </section>
-            </div>
+            currentUser ? 
+            <LoggedInHome 
+              db={db} 
+              currentUser={currentUser} 
+              appId={typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'} 
+              userProfile={userProfile}
+            /> : 
+            <LoggedOutHome handleAddWordClick={handleAddWordClick} />
           } />
           <Route path="/login" element={
             <section className="w-full max-w-xl mx-auto p-6 sm:p-8 flex-1">
