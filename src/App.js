@@ -232,6 +232,97 @@ const RegisterPage = ({
   );
 };
 
+// EditVocabListPage component
+const EditVocabListPage = ({ db, currentUser, appId, authError, setAuthError, handleUpdateVocabList }) => {
+  const { listId } = useParams();
+  const navigate = useNavigate();
+  const [listName, setListName] = useState('');
+  const [language, setLanguage] = useState('japanese');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentUser || !db || !listId) {
+      navigate('/login');
+      return;
+    }
+
+    const listDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabLists`, listId);
+    const unsubscribe = onSnapshot(listDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setListName(data.name);
+        setLanguage(data.language);
+        setLoading(false);
+      } else {
+        setAuthError("수정할 단어장을 찾을 수 없습니다.");
+        navigate('/vocabulary');
+      }
+    }, (err) => {
+      setAuthError(`단어장 정보 불러오기 오류: ${err.message}`);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, db, listId, appId, navigate, setAuthError]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    handleUpdateVocabList(listId, listName, language);
+  };
+
+  if (loading) {
+    return <p className="text-center text-gray-700">단어장 정보를 불러오는 중...</p>;
+  }
+
+  return (
+    <section className="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 flex-1">
+      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 border-b-2 border-indigo-200 pb-2">
+        단어장 수정
+      </h2>
+      <div className="max-w-md mx-auto">
+        {authError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <span className="block sm:inline ml-2">{authError}</span>
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
+          <div>
+            <label htmlFor="vocab-list-language" className="block text-gray-700 text-sm font-bold mb-2">
+              언어
+            </label>
+            <select
+              id="vocab-list-language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            >
+              <option value="japanese">일본어</option>
+              <option value="english">영어</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="vocab-list-name" className="block text-gray-700 text-sm font-bold mb-2">
+              단어장 이름
+            </label>
+            <input
+              type="text"
+              id="vocab-list-name"
+              value={listName}
+              onChange={(e) => setListName(e.target.value)}
+              placeholder="단어장 이름"
+              className="flex-grow shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              required
+            />
+          </div>
+          <button type="submit" className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300">
+            수정하기
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+};
+
 // CreateVocabListPage component
 const CreateVocabListPage = ({ newVocabListName, setNewVocabListName, newVocabListLanguage, setNewVocabListLanguage, handleCreateVocabList, authError }) => {
   const handleSubmit = (e) => {
@@ -252,20 +343,6 @@ const CreateVocabListPage = ({ newVocabListName, setNewVocabListName, newVocabLi
           )}
           <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
             <div>
-                <label htmlFor="vocab-list-name" className="block text-gray-700 text-sm font-bold mb-2">
-                    단어장 이름
-                </label>
-                <input
-                  type="text"
-                  id="vocab-list-name"
-                  value={newVocabListName}
-                  onChange={(e) => setNewVocabListName(e.target.value)}
-                  placeholder="새 단어장 이름"
-                  className="flex-grow shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  required
-                />
-            </div>
-            <div>
                 <label htmlFor="vocab-list-language" className="block text-gray-700 text-sm font-bold mb-2">
                     언어
                 </label>
@@ -278,6 +355,20 @@ const CreateVocabListPage = ({ newVocabListName, setNewVocabListName, newVocabLi
                   <option value="japanese">일본어</option>
                   <option value="english">영어</option>
                 </select>
+            </div>
+            <div>
+                <label htmlFor="vocab-list-name" className="block text-gray-700 text-sm font-bold mb-2">
+                    단어장 이름
+                </label>
+                <input
+                  type="text"
+                  id="vocab-list-name"
+                  value={newVocabListName}
+                  onChange={(e) => setNewVocabListName(e.target.value)}
+                  placeholder="새 단어장 이름"
+                  className="flex-grow shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  required
+                />
             </div>
             <button type="submit" className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300">
               만들기
@@ -398,7 +489,10 @@ const VocabularyListsPage = ({ db, currentUser, appId, authError, setAuthError, 
                   {list.language === 'japanese' ? '일본어' : '영어'}
                 </span>
               </Link>
-              <div className="mt-4 flex justify-center">
+              <div className="mt-4 flex justify-center space-x-2">
+                <Link to={`/vocabulary/edit/${list.id}`} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-1 px-3 rounded-lg transition duration-300">
+                  수정
+                </Link>
                 <button
                   onClick={() => {
                     if (window.confirm("정말로 이 단어장을 삭제하시겠습니까? 단어장 안의 모든 단어가 함께 삭제됩니다.")) {
@@ -1159,6 +1253,25 @@ function App() {
     }
   }, [db, currentUser, newVocabListName, newVocabListLanguage, setAuthError, setNewVocabListName, navigate]);
 
+  const handleUpdateVocabList = useCallback(async (listId, newName, newLanguage) => {
+    if (!db || !currentUser || !newName.trim()) {
+      setAuthError("단어장 이름을 입력해주세요.");
+      return;
+    }
+    try {
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      const listRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabLists`, listId);
+      await updateDoc(listRef, {
+        name: newName,
+        language: newLanguage,
+      });
+      setAuthError(null);
+      navigate('/vocabulary');
+    } catch (error) {
+      setAuthError(`단어장 수정 중 오류가 발생했습니다: ${error.message}`);
+    }
+  }, [db, currentUser, setAuthError, navigate]);
+
   const handleDeleteVocabList = useCallback(async (listId) => {
     if (!db || !currentUser) {
       setAuthError("단어장을 삭제하려면 로그인이 필요합니다.");
@@ -1312,6 +1425,16 @@ function App() {
               setNewVocabListLanguage={setNewVocabListLanguage}
               handleCreateVocabList={handleCreateVocabList}
               authError={authError}
+            />
+          } />
+          <Route path="/vocabulary/edit/:listId" element={
+            <EditVocabListPage
+              db={db}
+              currentUser={currentUser}
+              appId={typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}
+              authError={authError}
+              setAuthError={setAuthError}
+              handleUpdateVocabList={handleUpdateVocabList}
             />
           } />
           <Route path="/vocabulary/:language/:listId" element={
