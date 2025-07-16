@@ -3,6 +3,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, query, where, deleteDoc, updateDoc, writeBatch, addDoc, getDocs } from 'firebase/firestore';
+import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import WordTest from './components/WordTest';
 import EnglishTest from './components/EnglishTest';
@@ -646,6 +648,10 @@ const AddWordForm = ({
   handleSaveWord,
   imageBase64,
   setImageBase64,
+  imageUrlInput,
+  setImageUrlInput,
+  imageUploadMethod,
+  setImageUploadMethod,
 }) => {
   const fileInputRef = useRef();
 
@@ -654,7 +660,8 @@ const AddWordForm = ({
     setMeaning('');
     setPartOfSpeech('');
     setImageBase64('');
-  }, [setWord, setMeaning, setPartOfSpeech, setImageBase64]);
+    setImageUrlInput('');
+  }, [setWord, setMeaning, setPartOfSpeech, setImageBase64, setImageUrlInput]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -662,6 +669,7 @@ const AddWordForm = ({
       try {
         const encodedString = await resizeAndEncodeImage(file);
         setImageBase64(encodedString);
+        setImageUrlInput('');
       } catch (error) {
         setAuthError("이미지 처리 중 오류가 발생했습니다.");
         console.error(error);
@@ -689,40 +697,64 @@ const AddWordForm = ({
           <label className="block text-gray-700 text-sm font-bold mb-2 text-left">
             이미지 (선택 사항)
           </label>
-          <div
-            className="w-full h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-all"
-            onClick={() => fileInputRef.current.click()}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              accept="image/*"
-            />
-            {imageBase64 ? (
-              <div className="relative w-full h-full">
-                <img src={imageBase64} alt="미리보기" className="w-full h-full object-cover rounded-md" />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeImage();
-                  }}
-                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-sm"
-                >
-                  X
-                </button>
-              </div>
-            ) : (
-              <div className="text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <p className="mt-2 text-sm text-gray-600">클릭하여 이미지 업로드</p>
-              </div>
-            )}
+          <div className="flex border-b border-gray-200 mb-2">
+            <button type="button" onClick={() => setImageUploadMethod('file')} className={`px-4 py-2 font-medium text-sm rounded-t-lg ${imageUploadMethod === 'file' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                파일 업로드
+            </button>
+            <button type="button" onClick={() => setImageUploadMethod('url')} className={`px-4 py-2 font-medium text-sm rounded-t-lg ${imageUploadMethod === 'url' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                URL로 추가
+            </button>
           </div>
+
+          {imageUploadMethod === 'file' ? (
+            <div
+              className="w-full h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-all"
+              onClick={() => fileInputRef.current.click()}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept="image/*"
+              />
+              {imageBase64 ? (
+                <div className="relative w-full h-full">
+                  <img src={imageBase64} alt="미리보기" className="w-full h-full object-cover rounded-md" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeImage();
+                    }}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-sm"
+                  >
+                    X
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <p className="mt-2 text-sm text-gray-600">클릭하여 이미지 업로드</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <input
+                type="url"
+                placeholder="https://example.com/image.jpg"
+                value={imageUrlInput}
+                onChange={(e) => {
+                  setImageUrlInput(e.target.value);
+                  setImageBase64('');
+                }}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+          )}
         </div>
 
         <div>
@@ -776,7 +808,7 @@ const AddWordForm = ({
 };
 
 // AddWordPage component
-const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeaning, partOfSpeech, setPartOfSpeech, handleSaveWord, imageBase64, setImageBase64 }) => {
+const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeaning, partOfSpeech, setPartOfSpeech, handleSaveWord, imageBase64, setImageBase64, imageUrlInput, setImageUrlInput, imageUploadMethod, setImageUploadMethod }) => {
   const { language, listId } = useParams();
   const title = language === 'japanese' ? '일본어 단어장에 추가' : '영어 단어장에 추가';
 
@@ -801,13 +833,17 @@ const AddWordPage = ({ authError, setAuthError, word, setWord, meaning, setMeani
         handleSaveWord={onSave}
         imageBase64={imageBase64}
         setImageBase64={setImageBase64}
+        imageUrlInput={imageUrlInput}
+        setImageUrlInput={setImageUrlInput}
+        imageUploadMethod={imageUploadMethod}
+        setImageUploadMethod={setImageUploadMethod}
       />
     </section>
   );
 };
 
 // EditWordPage component
-const EditWordPage = ({ db, currentUser, handleUpdateWord, setAuthError, authError }) => {
+const EditWordPage = ({ db, currentUser, handleUpdateWord, setAuthError, authError, storage, functions }) => {
   const { language, listId, wordId } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef();
@@ -815,8 +851,12 @@ const EditWordPage = ({ db, currentUser, handleUpdateWord, setAuthError, authErr
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
   const [partOfSpeech, setPartOfSpeech] = useState('');
-  const [imageBase64, setImageBase64] = useState('');
+  const [image, setImage] = useState(''); // Can be a URL (string) or base64 (string)
+  const [originalImageUrl, setOriginalImageUrl] = useState('');
   const [loading, setLoading] = useState(true);
+  const [imageUploadMethod, setImageUploadMethod] = useState('file');
+  const [imageUrlInput, setImageUrlInput] = useState('');
+
 
   useEffect(() => {
     if (!db || !currentUser) {
@@ -835,7 +875,12 @@ const EditWordPage = ({ db, currentUser, handleUpdateWord, setAuthError, authErr
           setWord(data.word);
           setMeaning(data.meaning);
           setPartOfSpeech(data.partOfSpeech || '');
-          setImageBase64(data.imageUrl || '');
+          setImage(data.imageUrl || '');
+          setOriginalImageUrl(data.imageUrl || '');
+          if (data.imageUrl) {
+            setImageUrlInput(data.imageUrl);
+            setImageUploadMethod('url');
+          }
         } else {
           setAuthError("수정할 단어를 찾을 수 없습니다.");
           navigate(`/vocabulary/${language}/${listId}`);
@@ -855,7 +900,7 @@ const EditWordPage = ({ db, currentUser, handleUpdateWord, setAuthError, authErr
     if (file) {
       try {
         const encodedString = await resizeAndEncodeImage(file);
-        setImageBase64(encodedString);
+        setImage(encodedString);
       } catch (error) {
         setAuthError("이미지 처리 중 오류가 발생했습니다.");
         console.error(error);
@@ -864,14 +909,16 @@ const EditWordPage = ({ db, currentUser, handleUpdateWord, setAuthError, authErr
   };
 
   const removeImage = () => {
-    setImageBase64('');
+    setImage('');
+    setImageUrlInput('');
     if (fileInputRef.current) {
       fileInputRef.current.value = null;
     }
   };
 
   const onUpdate = () => {
-    handleUpdateWord(listId, wordId, word, meaning, partOfSpeech, language, imageBase64);
+    const imageData = imageUploadMethod === 'url' ? imageUrlInput : image;
+    handleUpdateWord(listId, wordId, word, meaning, partOfSpeech, language, imageData, originalImageUrl);
   };
 
   if (loading) {
@@ -897,40 +944,62 @@ const EditWordPage = ({ db, currentUser, handleUpdateWord, setAuthError, authErr
             <label className="block text-gray-700 text-sm font-bold mb-2 text-left">
               이미지
             </label>
-            <div
-              className="w-full h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-all"
-              onClick={() => fileInputRef.current.click()}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                className="hidden"
-                accept="image/*"
-              />
-              {imageBase64 ? (
-                <div className="relative w-full h-full">
-                  <img src={imageBase64} alt="미리보기" className="w-full h-full object-cover rounded-md" />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeImage();
-                    }}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-sm"
-                  >
-                    X
-                  </button>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <p className="mt-2 text-sm text-gray-600">클릭하여 이미지 업로드</p>
-                </div>
-              )}
+            <div className="flex border-b border-gray-200 mb-2">
+                <button type="button" onClick={() => setImageUploadMethod('file')} className={`px-4 py-2 font-medium text-sm rounded-t-lg ${imageUploadMethod === 'file' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                    파일 업로드
+                </button>
+                <button type="button" onClick={() => setImageUploadMethod('url')} className={`px-4 py-2 font-medium text-sm rounded-t-lg ${imageUploadMethod === 'url' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                    URL로 수정
+                </button>
             </div>
+
+            {imageUploadMethod === 'file' ? (
+                <div
+                className="w-full h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-all"
+                onClick={() => fileInputRef.current.click()}
+                >
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*"
+                />
+                {image && image.startsWith('data:image') ? (
+                    <div className="relative w-full h-full">
+                    <img src={image} alt="미리보기" className="w-full h-full object-cover rounded-md" />
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                        e.stopPropagation();
+                        removeImage();
+                        }}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-sm"
+                    >
+                        X
+                    </button>
+                    </div>
+                ) : (
+                    <div className="text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <p className="mt-2 text-sm text-gray-600">클릭하여 이미지 업로드</p>
+                    </div>
+                )}
+                </div>
+            ) : (
+                <div>
+                    <input
+                        type="url"
+                        placeholder="https://example.com/image.jpg"
+                        value={imageUrlInput}
+                        onChange={(e) => setImageUrlInput(e.target.value)}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                     {image && image.startsWith('http') && <img src={image} alt="현재 이미지" className="w-full h-32 object-cover rounded-md mt-4" />}
+                </div>
+            )}
           </div>
           <div>
             <label htmlFor="word" className="block text-gray-700 text-sm font-bold mb-2 text-left">
@@ -987,6 +1056,8 @@ function App() {
   const navigate = useNavigate();
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
+  const [storage, setStorage] = useState(null);
+  const [functions, setFunctions] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [userId, setUserId] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -999,6 +1070,8 @@ function App() {
   const [meaning, setMeaning] = useState('');
   const [partOfSpeech, setPartOfSpeech] = useState('');
   const [imageBase64, setImageBase64] = useState('');
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [imageUploadMethod, setImageUploadMethod] = useState('file');
   const [newVocabListName, setNewVocabListName] = useState('');
   const [newVocabListLanguage, setNewVocabListLanguage] = useState('japanese');
 
@@ -1028,9 +1101,14 @@ function App() {
 
         const app = initializeApp(firebaseConfig);
         const authInstance = getAuth(app);
-        setAuth(authInstance);
         const dbInstance = getFirestore(app);
+        const storageInstance = getStorage(app);
+        const functionsInstance = getFunctions(app);
+
+        setAuth(authInstance);
         setDb(dbInstance);
+        setStorage(storageInstance);
+        setFunctions(functionsInstance);
 
         authUnsubscribe = onAuthStateChanged(authInstance, async (user) => {
           if (currentProfileUnsubscribe) {
@@ -1154,7 +1232,7 @@ function App() {
   }, [auth, navigate]);
 
   const handleSaveWord = useCallback(async (listId, language) => {
-    if (!auth || !db || !currentUser || !listId) {
+    if (!auth || !db || !storage || !functions || !currentUser || !listId) {
       setAuthError("단어를 저장하려면 로그인이 필요합니다.");
       navigate('/login');
       return;
@@ -1165,14 +1243,28 @@ function App() {
     }
 
     try {
+      setAuthError(null);
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-      const wordRef = doc(collection(db, `artifacts/${appId}/users/${currentUser.uid}/vocabLists/${listId}/words`));
+      const wordsCollectionRef = collection(db, `artifacts/${appId}/users/${currentUser.uid}/vocabLists/${listId}/words`);
+      const newWordRef = doc(wordsCollectionRef);
       
-      await setDoc(wordRef, {
+      let finalImageUrl = '';
+
+      if (imageUploadMethod === 'file' && imageBase64) {
+        const storageRef = ref(storage, `wordImages/${currentUser.uid}/${newWordRef.id}`);
+        const uploadResult = await uploadString(storageRef, imageBase64, 'data_url');
+        finalImageUrl = await getDownloadURL(uploadResult.ref);
+      } else if (imageUploadMethod === 'url' && imageUrlInput) {
+        const uploadImage = httpsCallable(functions, 'uploadImageFromUrl');
+        const result = await uploadImage({ imageUrl: imageUrlInput });
+        finalImageUrl = result.data.downloadURL;
+      }
+
+      await setDoc(newWordRef, {
         word: word,
         meaning: meaning,
         partOfSpeech: partOfSpeech,
-        imageUrl: imageBase64,
+        imageUrl: finalImageUrl,
         createdAt: new Date().toISOString(),
       });
 
@@ -1180,15 +1272,16 @@ function App() {
       setMeaning('');
       setPartOfSpeech('');
       setImageBase64('');
-      setAuthError(null);
+      setImageUrlInput('');
       navigate(`/vocabulary/${language}/${listId}`);
     } catch (error) {
       setAuthError(`단어 저장 중 오류가 발생했습니다: ${error.message}`);
+      console.error(error);
     }
-  }, [auth, db, currentUser, word, meaning, partOfSpeech, imageBase64, navigate, setAuthError, setWord, setMeaning, setPartOfSpeech, setImageBase64]);
+  }, [auth, db, storage, functions, currentUser, word, meaning, partOfSpeech, imageBase64, imageUrlInput, imageUploadMethod, navigate, setAuthError, setWord, setMeaning, setPartOfSpeech, setImageBase64, setImageUrlInput]);
 
   const handleDeleteWord = useCallback(async (listId, wordId) => {
-    if (!db || !currentUser || !listId) {
+    if (!db || !storage || !currentUser || !listId) {
       setAuthError("단어를 삭제하려면 로그인이 필요합니다.");
       return;
     }
@@ -1197,14 +1290,30 @@ function App() {
     try {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabLists/${listId}/words`, wordId);
+      
+      const wordSnap = await getDoc(wordRef);
+      if (wordSnap.exists()) {
+        const { imageUrl } = wordSnap.data();
+        if (imageUrl) {
+          try {
+            const imageRef = ref(storage, imageUrl);
+            await deleteObject(imageRef);
+          } catch (storageError) {
+            if (storageError.code !== 'storage/object-not-found') {
+              console.warn("Could not delete image from storage:", storageError);
+            }
+          }
+        }
+      }
+
       await deleteDoc(wordRef);
     } catch (error) {
       setAuthError(`단어 삭제 중 오류가 발생했습니다: ${error.message}`);
     }
-  }, [db, currentUser, setAuthError]);
+  }, [db, storage, currentUser, setAuthError]);
 
-  const handleUpdateWord = useCallback(async (listId, wordId, newWord, newMeaning, newPartOfSpeech, language, newImageBase64) => {
-    if (!db || !currentUser || !listId) {
+  const handleUpdateWord = useCallback(async (listId, wordId, newWord, newMeaning, newPartOfSpeech, language, newImageData, originalUrl) => {
+    if (!db || !storage || !functions || !currentUser || !listId) {
       setAuthError("단어를 수정하려면 로그인이 필요합니다.");
       return;
     }
@@ -1217,22 +1326,48 @@ function App() {
     const wordRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/vocabLists/${listId}/words`, wordId);
 
     try {
+      setAuthError(null);
       const updateData = {
         word: newWord,
         meaning: newMeaning,
         partOfSpeech: newPartOfSpeech,
-        imageUrl: newImageBase64,
         updatedAt: new Date().toISOString(),
       };
 
-      await updateDoc(wordRef, updateData);
+      if (newImageData !== originalUrl) {
+        if (originalUrl) {
+          try {
+            const oldImageRef = ref(storage, originalUrl);
+            await deleteObject(oldImageRef);
+          } catch (e) {
+            if (e.code !== 'storage/object-not-found') {
+              console.warn("Could not delete old image from storage:", e);
+            }
+          }
+        }
 
-      setAuthError(null);
+        if (newImageData) {
+          if (newImageData.startsWith('data:image')) { 
+            const newImageRef = ref(storage, `wordImages/${currentUser.uid}/${wordId}`);
+            const uploadResult = await uploadString(newImageRef, newImageData, 'data_url');
+            updateData.imageUrl = await getDownloadURL(uploadResult.ref);
+          } else if (newImageData.startsWith('http')) {
+            const uploadImage = httpsCallable(functions, 'uploadImageFromUrl');
+            const result = await uploadImage({ imageUrl: newImageData });
+            updateData.imageUrl = result.data.downloadURL;
+          }
+        } else {
+          updateData.imageUrl = '';
+        }
+      }
+
+      await updateDoc(wordRef, updateData);
       navigate(`/vocabulary/${language}/${listId}`);
     } catch (error) {
       setAuthError(`단어 수정 중 오류가 발생했습니다: ${error.message}`);
+      console.error(error);
     }
-  }, [db, currentUser, navigate, setAuthError]);
+  }, [db, storage, functions, currentUser, navigate, setAuthError]);
 
   const handleCreateVocabList = useCallback(async () => {
     if (!db || !currentUser || !newVocabListName.trim()) {
@@ -1275,7 +1410,7 @@ function App() {
   }, [db, currentUser, setAuthError, navigate]);
 
   const handleDeleteVocabList = useCallback(async (listId) => {
-    if (!db || !currentUser) {
+    if (!db || !storage || !currentUser) {
       setAuthError("단어장을 삭제하려면 로그인이 필요합니다.");
       return;
     }
@@ -1290,9 +1425,20 @@ function App() {
       
       const batch = writeBatch(db);
 
-      wordsSnapshot.forEach((wordDoc) => {
-        batch.delete(wordDoc.ref);
-      });
+      for (const wordDoc of wordsSnapshot.docs) {
+          const { imageUrl } = wordDoc.data();
+          if (imageUrl) {
+              try {
+                  const imageRef = ref(storage, imageUrl);
+                  await deleteObject(imageRef);
+              } catch (e) {
+                  if (e.code !== 'storage/object-not-found') {
+                    console.warn(`Failed to delete image ${imageUrl}:`, e);
+                  }
+              }
+          }
+          batch.delete(wordDoc.ref);
+      }
 
       batch.delete(listRef);
 
@@ -1305,7 +1451,7 @@ function App() {
       setAuthError(errorMessage);
       console.error("Error deleting vocab list:", error);
     }
-  }, [db, currentUser, setAuthError, navigate]);
+  }, [db, storage, currentUser, setAuthError, navigate]);
 
 
   if (loadingAuth) {
@@ -1454,6 +1600,10 @@ function App() {
               handleSaveWord={handleSaveWord}
               imageBase64={imageBase64}
               setImageBase64={setImageBase64}
+              imageUrlInput={imageUrlInput}
+              setImageUrlInput={setImageUrlInput}
+              imageUploadMethod={imageUploadMethod}
+              setImageUploadMethod={setImageUploadMethod}
             />
           } />
           <Route path="/edit-word/:language/:listId/:wordId" element={
@@ -1463,6 +1613,8 @@ function App() {
               handleUpdateWord={handleUpdateWord}
               authError={authError}
               setAuthError={setAuthError}
+              storage={storage}
+              functions={functions}
             />
           } />
           <Route path="/profile" element={
